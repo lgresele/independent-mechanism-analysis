@@ -16,6 +16,7 @@ def cart2pol(x, y):
 def scatterplot_variables(X, title, colors='None', cmap='hsv'):
     '''
     Scatterplot of 2d variables, can be used both for the mixing and the unmixing
+    X : (N,D) array -- N samples, D dimensions (D=2).ss
     '''
     if colors=='None':
         plt.scatter(X[:,0], X[:,1], color='r', s=30)
