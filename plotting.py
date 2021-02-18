@@ -27,3 +27,19 @@ def scatterplot_variables(X, title, colors='None', cmap='hsv'):
     plt.title(title)
     plt.gca().set_aspect('equal', adjustable='box')
     plt.show()
+    
+def plot_histograms(hist_values, labels, xlabel):    
+    '''
+    1d Histograms
+    hist_values : a list of arrays for which we want a histogram 
+    labels : a number of labels for the legend -- same length as hist_values
+    xlabel : what we want to be written under the x axis
+    '''
+    plt.hist(hist_values, 
+             histtype='step', 
+             density=True, 
+             label= labels
+            )
+    plt.legend(prop={'size': 10})
+    plt.xlabel(xlabel)
+    plt.show
