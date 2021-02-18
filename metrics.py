@@ -1,8 +1,8 @@
 from jax import numpy as np 
     
-def mMI(Jf, s):
+def aDM(Jf, s):
     '''
-    Mutual Information inspired independence of mechanisms metric
+    anti Darmois Metric
     
     Input:
     Jf: batched Jacobian (function)
@@ -12,7 +12,7 @@ def mMI(Jf, s):
     
     Output:
     
-    metric
+    aDM metric: a scalar
     '''
     
     # Get shapes and dimensions
