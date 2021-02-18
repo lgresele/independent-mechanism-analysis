@@ -107,3 +107,21 @@ def f_g_unl(A):
         return y
     
     return f, f_inv
+
+
+def f_lin(A):
+    '''
+    Returns a function performing a linear mixing, and its inverse
+    '''
+    
+    def f(x):
+        return A @ x
+    
+    A_inv = np.linalg.inv(A) 
+    
+    def f_inv(x):
+        return A_inv @ x
+    
+    return f, f_inv
+
+
