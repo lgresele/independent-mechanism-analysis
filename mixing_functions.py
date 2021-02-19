@@ -126,22 +126,19 @@ def darmois_linear_gaussian_2d(A):
 
 def darmois_linear_gaussian(A):
     '''
-    Returns the Darmois construction (and its inverse) for Gaussian sources
+    Returns a Darmois-like construction (and its inverse) for Gaussian sources
     in arbitrary dimension D
     '''
-    sigma_0 = np.sqrt(A[0,0]**2 + A[0,1]**2) 
-    sigma_1 = np.sqrt(A[1,0]**2 + A[1,1]**2) 
-    rho_01 = (A[0,0]*A[1,0] + A[0,1]*A[1,1])/(sigma_0*sigma_1)
-    c_1_given_0 = rho_01*sigma_1/sigma_0
+    A_inv = np.linalg.inv(A)
+    _, R = np.linalg.qr(A_inv)
+    R_inv = np.linalg.inv(R)
     
     def darmois(x):
-        y_0 = 0.5*(1.0 + special.erf(x[0]/(sigma_0*np.sqrt(2.0))))
-        y_1 = 0.5*(1.0 + special.erf( (x[1] - c_1_given_0* x[0]) /np.sqrt( 2 * ( 1.0 - rho_01**2) * sigma_1**2 )))
-        return np.array([y_0, y_1])
+        y = R @ x
+        return 0.5*(1.0 + special.erf(y))
 
     def inv_darmois(y):
-        s_0 = sigma_0*np.sqrt(2)*special.erfinv(2.0*y[0]-1.0)
-        s_1 = np.sqrt( 2 * ( 1.0 - rho_01**2) * sigma_1**2 ) * special.erfinv(2.0*y[1]-1.0) + c_1_given_0 * s_0
-        return np.array([s_0, s_1])    
+        y = special.erfinv(2*y - 1.0)
+        return R_inv @ y
     
     return darmois, inv_darmois
