@@ -128,6 +128,8 @@ def darmois_linear_gaussian(A):
     '''
     Returns a Darmois-like construction (and its inverse) for Gaussian sources
     in arbitrary dimension D
+    
+    N.B. This is still rather heuristic!
     '''
     A_inv = np.linalg.inv(A)
     _, R = np.linalg.qr(A_inv)
