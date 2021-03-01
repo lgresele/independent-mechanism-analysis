@@ -4,6 +4,8 @@ Various plotting functions I am using over and over
 
 from jax import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.collections import LineCollection
+import numpy as onp
 
 def cart2pol(x, y):
     '''
@@ -43,3 +45,43 @@ def plot_histograms(hist_values, labels, xlabel):
     plt.legend(prop={'size': 10})
     plt.xlabel(xlabel)
     plt.show
+
+'''
+Various functions for grid plots
+'''
+    
+def plot_grid(x,y, ax=None, **kwargs):
+    ax = ax or plt.gca()
+    segs1 = onp.stack((x,y), axis=2)
+    segs2 = segs1.transpose(1,0,2)
+    ax.add_collection(LineCollection(segs1, **kwargs))
+    ax.add_collection(LineCollection(segs2, **kwargs))
+    ax.autoscale()
+    
+def show_grid_plot(f, multi_argument=False):
+    '''
+    Plots how a regularly spaced grid in a 2d space is distorted under the action of the function f
+    
+    f: A mixing function
+    multi_argument: A Boolean variable; checks whether f takes a (N,2) array as input, or two (N,) arrays.
+                    In the latter case, internally builds a version of f which takes two (N,) arrays as input.
+    '''
+    
+    if multi_argument==False:
+        def f_grid(x, y):
+            z = np.array([x, y])
+            z_ = f(z)
+            return z_[0], z_[1]
+    else:
+        f_grid = f
+
+    fig, ax = plt.subplots()
+
+    grid_x,grid_y = np.meshgrid(onp.linspace(0,1,20),onp.linspace(0,1,20))
+    plot_grid(grid_x,grid_y, ax=ax,  color="lightgrey")
+
+    distx, disty = f_grid(grid_x,grid_y)
+    plot_grid(distx, disty, ax=ax, color="C0")
+ 
+    plt.gca().set_aspect('equal', adjustable='box')
+    plt.show()
