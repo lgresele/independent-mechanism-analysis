@@ -21,12 +21,14 @@ def aDM(Jf, s):
     # Compute the Jacobian
     Jacf = Jf(s)
 
-    # Compute the norm of its columns
+    # Compute the norm of its rows
+#     grad_norms = np.linalg.norm(Jacf, axis=2)
+#     # Compute the norm of its columns
     grad_norms = np.linalg.norm(Jacf, axis=1)
     log_grad_norms = np.log(grad_norms)
 
     # Sum the norms
-    sum_log_norms = np.sum(log_grad_norms, axis = 1)
+    sum_log_norms = np.sum(log_grad_norms, axis = -1)
 
     # Compute the determinants of the Jacobians
     # N.B. Jacf needs to be of shape (..., M, M)
