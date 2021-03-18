@@ -58,7 +58,7 @@ def plot_grid(x,y, ax=None, **kwargs):
     ax.add_collection(LineCollection(segs2, **kwargs))
     ax.autoscale()
     
-def show_grid_plot(f, multi_argument=False):
+def show_grid_plot(f, multi_argument=False, extremes=(0,1)):
     '''
     Plots how a regularly spaced grid in a 2d space is distorted under the action of the function f
     
@@ -75,9 +75,11 @@ def show_grid_plot(f, multi_argument=False):
     else:
         f_grid = f
 
+    bottom, top = extremes
+    
     fig, ax = plt.subplots()
 
-    grid_x,grid_y = np.meshgrid(onp.linspace(0,1,20),onp.linspace(0,1,20))
+    grid_x,grid_y = np.meshgrid(onp.linspace(bottom,top,20),onp.linspace(bottom,top,20))
     plot_grid(grid_x,grid_y, ax=ax,  color="lightgrey")
 
     distx, disty = f_grid(grid_x,grid_y)
