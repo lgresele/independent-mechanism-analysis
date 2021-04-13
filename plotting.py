@@ -15,7 +15,7 @@ def cart2pol(x, y):
     phi = np.arctan2(y, x)
     return(rho, phi)
 
-def scatterplot_variables(X, title, colors='None', cmap='hsv'):
+def scatterplot_variables(X, title, colors='None', cmap='hsv', savefig=False, fname="scatterplot"):
     '''
     Scatterplot of 2d variables, can be used both for the mixing and the unmixing
     X : (N,D) array -- N samples, D dimensions (D=2).ss
@@ -24,10 +24,25 @@ def scatterplot_variables(X, title, colors='None', cmap='hsv'):
         plt.scatter(X[:,0], X[:,1], color='r', s=30)
     else:
         plt.scatter(X[:,0], X[:,1], c=colors, s=30, alpha=0.75, cmap=cmap)
-    plt.xlabel('x-axis')
-    plt.ylabel('y-axis')
+    if title=="Sources":
+        plt.xlabel('s_1')
+        plt.ylabel('s_2')
+    elif title=="Observations":
+        plt.xlabel('x_1')
+        plt.ylabel('x_2')
+    elif title=="Reconstructed" or title=="Reconstructions":
+        plt.xlabel('y_1')
+        plt.ylabel('y_2')
+    else:
+        plt.xlabel('x-axis')
+        plt.ylabel('y-axis')
     plt.title(title)
     plt.gca().set_aspect('equal', adjustable='box')
+    if savefig==True:
+        plt.savefig(fname, dpi=None, facecolor='w', edgecolor='w',
+            orientation='portrait', papertype=None, format=None,
+            transparent=False, bbox_inches=None, pad_inches=0.1,
+            frameon=None, metadata=None)
     plt.show()
     
 def plot_histograms(hist_values, labels, xlabel):    
@@ -58,7 +73,7 @@ def plot_grid(x,y, ax=None, **kwargs):
     ax.add_collection(LineCollection(segs2, **kwargs))
     ax.autoscale()
     
-def show_grid_plot(f, multi_argument=False, extremes=(0,1)):
+def show_grid_plot(f, multi_argument=False, extremes=(0,1), savefig=False, fname="grplot"):
     '''
     Plots how a regularly spaced grid in a 2d space is distorted under the action of the function f
     
@@ -86,4 +101,9 @@ def show_grid_plot(f, multi_argument=False, extremes=(0,1)):
     plot_grid(distx, disty, ax=ax, color="C0")
  
     plt.gca().set_aspect('equal', adjustable='box')
+    if savefig==True:
+        plt.savefig(fname, dpi=None, facecolor='w', edgecolor='w',
+            orientation='portrait', papertype=None, format=None,
+            transparent=False, bbox_inches=None, pad_inches=0.1,
+            frameon=None, metadata=None)
     plt.show()
