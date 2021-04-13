@@ -24,7 +24,7 @@ def f_2(s):
     '''
     "Rather nonlinear mixing"
     '''
-    f0 = np.tanh(s[1])/2 + s[0] + s[1]**2/2
+    f0 = np.tanh(s[1])/2 + s[0] + s[0]**2/2
     f1 = s[0]**3 - s[0] + np.tanh(s[1])
     return np.array([f0, f1])
 
@@ -144,3 +144,29 @@ def darmois_linear_gaussian(A):
         return R_inv @ y
     
     return darmois, inv_darmois
+
+def build_conformal_map(nonlinearity):
+    '''
+    Build conformal map in 2d starting from a given nonlinearity,
+    by turning the sources into complex numbers, applying the nonlinearity and
+    separating real and imaginary part in the observations.
+    '''
+    
+    def conformal_map(x):
+#         x-= 0.5
+        z = x[0] + x[1]*1j
+        y = nonlinearity(z)
+        re = np.real(y)
+        imag = np.imag(y)
+        return np.array([re, imag])
+    
+    def conformal_map_gridplot(x_0, x_1):
+#         x_0-= 0.5
+#         x_1-= 0.5
+        z = x_0 + x_1*1j
+        y = nonlinearity(z)
+        re = np.real(y)
+        imag = np.imag(y)
+        return re, imag
+    
+    return conformal_map, conformal_map_gridplot
