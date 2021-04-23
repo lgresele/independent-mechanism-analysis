@@ -5,9 +5,9 @@ import haiku as hk
 
 class TriangularResidual(distrax.Bijector):
 
-    def __init__(self, net):
-        super().__init__(1)
-        self.net = net
+    def __init__(self, hidden_units, zeros=True):
+        super().__init__()
+        self.net = mlp(hidden_units, zeros)
 
     def forward_and_log_det(self, x):
         y = x + self.net(x)
