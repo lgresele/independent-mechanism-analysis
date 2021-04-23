@@ -1,6 +1,7 @@
 import distrax
 import jax
 import jax.numpy as jnp
+import haiku as hk
 
 class TriangularResidual(distrax.Bijector):
 
@@ -40,3 +41,19 @@ class TriangularResidual(distrax.Bijector):
 
     def _logdetgrad(self, x):
         return 0
+
+
+def mlp(hidden_units, zeros=True) -> hk.Sequential:
+    """
+    Returns an haiku MLP with relu nonlinearlties and a number
+    of hidden units specified by an array
+    :param hidden_units: Array containing number of hidden units of each layer
+    :param zeros: Flag, if true weights and biases of last layer are
+    initialized as zero
+    :return: MLP as hk.Sequential
+    """
+    layers = []
+    for i in range(len(hidden_units) - 1):
+        layers += [hk.Linear(hidden_units[i]), jax.nn.relu]
+    layers += [hk.Linear(hidden_units[-1], w_init=jnp.zeros, b_init=jnp.zeros)]
+    return hk.Sequential(layers)
