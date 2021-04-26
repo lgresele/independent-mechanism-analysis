@@ -5,9 +5,9 @@ import haiku as hk
 
 class TriangularResidual(distrax.Bijector):
 
-    def __init__(self, hidden_units, zeros=True, brute_force_log_det=False):
+    def __init__(self, hidden_units, zeros=True, brute_force_log_det=False, name='residual'):
         super().__init__(1)
-        self.net = mlp(hidden_units, zeros)
+        self.net = mlp(hidden_units, zeros, name)
         self.brute_force_log_det = brute_force_log_det
         if self.brute_force_log_det:
             self.net_jac = jax.jacfwd(self.net)
@@ -53,7 +53,7 @@ class TriangularResidual(distrax.Bijector):
         return log_det
 
 
-def mlp(hidden_units, zeros=True) -> hk.Sequential:
+def mlp(hidden_units, zeros=True, name=None) -> hk.Sequential:
     """
     Returns an haiku MLP with relu nonlinearlties and a number
     of hidden units specified by an array
@@ -63,7 +63,17 @@ def mlp(hidden_units, zeros=True) -> hk.Sequential:
     :return: MLP as hk.Sequential
     """
     layers = []
+    if name is None:
+        prefix = ''
+    else:
+        prefix = name + '_'
     for i in range(len(hidden_units) - 1):
-        layers += [hk.Linear(hidden_units[i]), jax.nn.relu]
-    layers += [hk.Linear(hidden_units[-1], w_init=jnp.zeros, b_init=jnp.zeros)]
+        layer_name = prefix + 'linear_' + str(i)
+        layers += [hk.Linear(hidden_units[i], name=layer_name), jax.nn.relu]
+    layer_name = prefix + 'linear_' + str(i + 1)
+    if zeros:
+        layers += [hk.Linear(hidden_units[-1], w_init=jnp.zeros, b_init=jnp.zeros,
+                             name=layer_name)]
+    else:
+        layers += [hk.Linear(hidden_units[-1], name=layer_name)]
     return hk.Sequential(layers)
