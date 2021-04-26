@@ -10,7 +10,7 @@ class TriangularResidual(distrax.Bijector):
         self.net = mlp(hidden_units, zeros)
         self.brute_force_log_det = brute_force_log_det
         if self.brute_force_log_det:
-            self.net_grad = jax.grad(self.net)
+            self.net_jac = jax.jacfwd(self.net)
 
     def forward_and_log_det(self, x):
         y = x + self.net(x)
@@ -44,9 +44,10 @@ class TriangularResidual(distrax.Bijector):
 
     def _logdetgrad(self, x):
         if self.brute_force_log_det:
-            jac = self.net_grad(x)
-            log_det = jax.abs((jac[:, 0, 0] + 1) * (jac[:, 1, 1] + 1)
-                              - jac[:, 0, 1] * jac[:, 1, 0]).reshape(-1, 1)
+            jac = self.net_jac(x)
+            det = jax.abs((jac[:, 0, 0] + 1) * (jac[:, 1, 1] + 1)
+                          - jac[:, 0, 1] * jac[:, 1, 0])
+            log_det = jax.log(det).reshape(-1, 1)
         else:
             log_det = 0
         return log_det
