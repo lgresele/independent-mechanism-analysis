@@ -1,6 +1,7 @@
 import distrax
 import jax
 import jax.numpy as jnp
+import numpy as np
 import haiku as hk
 
 class TriangularResidual(distrax.Bijector):
@@ -77,3 +78,39 @@ def mlp(hidden_units, zeros=True, name=None) -> hk.Sequential:
     else:
         layers += [hk.Linear(hidden_units[-1], name=layer_name)]
     return hk.Sequential(layers)
+
+
+def masks_triangular_weights(ndims, hidden_units):
+    total_hu = jnp.sum(jnp.array(hidden_units))
+    # Create masks
+    mask0 = np.ones((ndims, total_hu))
+    mask1 = np.ones((total_hu, total_hu))
+    # Make masks block triangular
+    thu = 0
+    hu = hidden_units[0]
+    for i in range(1, len(hidden_units)):
+        thu += hu
+        hu_ = hidden_units[i]
+        mask1[thu:(thu + hu_), :thu] = np.zeros((hu_, thu))
+        mask0[i, :thu] = np.zeros(thu)
+        hu = hu_
+    return [jnp.array(mask0), jnp.array(mask1), jnp.array(mask0.T)]
+
+
+def make_weights_triangular(params, masks, keywords=['']):
+    params_new = {}
+    for key, item in params.items():
+        if np.all([keyw in key for keyw in keywords]):
+            params_new[key] = {}
+            s = item['w'].shape
+            if s == masks[1].shape:
+                params_new[key]['w'] = item['w'] * masks[1]
+            elif s == masks[0].shape:
+                params_new[key]['w'] = item['w'] * masks[0]
+            else:
+                params_new[key]['w'] = item['w'] * masks[2]
+            params_new[key]['b'] = item['b']
+            params_new[key] = hk.data_structures.to_immutable_dict(params_new[key])
+        else:
+            params_new[key] = item
+    return hk.data_structures.to_immutable_dict(params_new)
