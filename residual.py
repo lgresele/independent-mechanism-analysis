@@ -126,15 +126,15 @@ def spectral_norm_init(params, rng_key, keywords=['residual', 'linear']):
             uv[key] = {}
             rng_key, rng_subkey = jax.random.split(rng_key)
             s = params[key]['w'].shape
-            u = jax.random.normal(rng_subkey, (s[0],))
+            u = jax.random.normal(rng_subkey, (s[1],))
             uv[key]['u'] = u / jnp.linalg.norm(u)
             rng_key, rng_subkey = jax.random.split(rng_key)
-            v = jax.random.normal(rng_subkey, (s[1],))
+            v = jax.random.normal(rng_subkey, (s[0],))
             uv[key]['v'] = v / jnp.linalg.norm(v)
     return uv
 
 def spectral_normalization(params, uv, keywords=['residual', 'linear'], coeff=0.97,
-                           max_iter=1000, atol=1e-4, rtol=1e-4):
+                           max_iter=100, atol=1e-3, rtol=1e-3):
     params_new = {}
     for key, item in params.items():
         if np.all([keyw in key for keyw in keywords]):
@@ -142,26 +142,37 @@ def spectral_normalization(params, uv, keywords=['residual', 'linear'], coeff=0.
             u = jax.lax.stop_gradient(uv[key]['u'])
             v = jax.lax.stop_gradient(uv[key]['v'])
             w = jax.lax.stop_gradient(item['w'])
-            for _ in range(max_iter):
-                u_ = u
-                v_ = v
-                u = jnp.matmul(w, u)
-                u = u / jnp.linalg.norm(u)
-                v = jnp.matmul(v, w)
-                v = v / jnp.linalg.norm(v)
+            for i in range(max_iter):
+                v_ = jnp.matmul(w, u)
+                u_ = jnp.matmul(v, w)
+                if jnp.linalg.norm(v_) > 0:
+                    v, v_ = v_, v
+                    v = v / jnp.linalg.norm(v)
+                else:
+                    break
+                if jnp.linalg.norm(u_) > 0:
+                    u, u_ = u_, u
+                    u = u / jnp.linalg.norm(u)
+                else:
+                    break
                 if atol is not None and rtol is not None:
-                    err_u = jnp.linalg.norm(u - u_) / (len(u) ** 0.5)
-                    err_v = jnp.linalg.norm(v - v_) / (len(v) ** 0.5)
+                    err_u_ = jnp.concatenate([jnp.linalg.norm(u - u_)[None],
+                                              jnp.linalg.norm(u + u_)[None]])
+                    err_u = jnp.min(err_u_) / (len(u) ** 0.5)
+                    err_v_ = jnp.concatenate([jnp.linalg.norm(v - v_)[None],
+                                              jnp.linalg.norm(v + v_)[None]])
+                    err_v = jnp.min(err_v_) / (len(v) ** 0.5)
                     tol_u = atol + rtol * jnp.max(u)
                     tol_v = atol + rtol * jnp.max(v)
                     if err_u < tol_u and err_v < tol_v:
                         break
-            sigma = jnp.dot(v, jnp.matmul(w, u))
+            sigma = jnp.abs(jnp.dot(v, jnp.matmul(w, u)))[None]
             uv[key]['u'] = u
             uv[key]['v'] = v
-            params_new[key]['w'] = item['w'] * (coeff / sigma)
+            factor = jnp.min(jnp.concatenate([coeff / sigma, jnp.ones_like(sigma)]))
+            params_new[key]['w'] = item['w'] * factor
             params_new[key]['b'] = item['b']
             params_new[key] = hk.data_structures.to_immutable_dict(params_new[key])
         else:
             params_new[key] = item
-    return hk.data_structures.to_immutable_dict(params_new)
+    return hk.data_structures.to_immutable_dict(params_new), uv
