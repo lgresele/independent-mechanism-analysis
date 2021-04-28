@@ -80,24 +80,27 @@ def mlp(hidden_units, zeros=True, name=None) -> hk.Sequential:
     return hk.Sequential(layers)
 
 
-def masks_triangular_weights(ndims, hidden_units):
+def masks_triangular_weights(hidden_units):
     total_hu = jnp.sum(jnp.array(hidden_units))
+    ndims = len(hidden_units)
     # Create masks
     mask0 = np.ones((ndims, total_hu))
     mask1 = np.ones((total_hu, total_hu))
+    mask2 = np.ones((total_hu, ndims))
     # Make masks block triangular
     thu = 0
     hu = hidden_units[0]
-    for i in range(1, len(hidden_units)):
+    for i in range(1, ndims):
         thu += hu
         hu_ = hidden_units[i]
         mask1[thu:(thu + hu_), :thu] = np.zeros((hu_, thu))
         mask0[i, :thu] = np.zeros(thu)
+        mask2[thu:, i - 1] = np.zeros(total_hu - thu)
         hu = hu_
-    return [jnp.array(mask0), jnp.array(mask1), jnp.array(mask0.T)]
+    return [jnp.array(mask0), jnp.array(mask1), jnp.array(mask2)]
 
 
-def make_weights_triangular(params, masks, keywords=['']):
+def make_weights_triangular(params, masks, keywords=['residual', 'linear']):
     params_new = {}
     for key, item in params.items():
         if np.all([keyw in key for keyw in keywords]):
@@ -116,7 +119,7 @@ def make_weights_triangular(params, masks, keywords=['']):
     return hk.data_structures.to_immutable_dict(params_new)
 
 
-def spectral_norm_init(params, rng_key, keywords=['']):
+def spectral_norm_init(params, rng_key, keywords=['residual', 'linear']):
     uv = {}
     for key, item in params.items():
         if np.all([keyw in key for keyw in keywords]):
@@ -130,7 +133,7 @@ def spectral_norm_init(params, rng_key, keywords=['']):
             uv[key]['v'] = v / jnp.linalg.norm(v)
     return uv
 
-def spectral_normalization(params, uv, keywords=[''], coeff=0.97,
+def spectral_normalization(params, uv, keywords=['residual', 'linear'], coeff=0.97,
                            max_iter=1000, atol=1e-4, rtol=1e-4):
     params_new = {}
     for key, item in params.items():
