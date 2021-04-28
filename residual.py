@@ -6,12 +6,12 @@ import haiku as hk
 
 class TriangularResidual(distrax.Bijector):
 
-    def __init__(self, hidden_units, zeros=True, brute_force_log_det=False, name='residual'):
+    def __init__(self, hidden_units, zeros=False, brute_force_log_det=True, name='residual'):
         super().__init__(1)
         self.net = mlp(hidden_units, zeros, name)
         self.brute_force_log_det = brute_force_log_det
         if self.brute_force_log_det:
-            self.net_jac = jax.jacfwd(self.net)
+            self.net_jac = jax.vmap(jax.jacfwd(self.net))
 
     def forward_and_log_det(self, x):
         y = x + self.net(x)
@@ -46,9 +46,9 @@ class TriangularResidual(distrax.Bijector):
     def _logdetgrad(self, x):
         if self.brute_force_log_det:
             jac = self.net_jac(x)
-            det = jax.abs((jac[:, 0, 0] + 1) * (jac[:, 1, 1] + 1)
+            det = jnp.abs((jac[:, 0, 0] + 1) * (jac[:, 1, 1] + 1)
                           - jac[:, 0, 1] * jac[:, 1, 0])
-            log_det = jax.log(det).reshape(-1, 1)
+            log_det = jnp.log(det).reshape(-1, 1)
         else:
             log_det = 0
         return log_det
