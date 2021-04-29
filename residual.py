@@ -139,9 +139,9 @@ def spectral_normalization(params, uv, keywords=['residual', 'linear'], coeff=0.
     for key, item in params.items():
         if np.all([keyw in key for keyw in keywords]):
             params_new[key] = {}
-            u = jax.lax.stop_gradient(uv[key]['u'])
-            v = jax.lax.stop_gradient(uv[key]['v'])
-            w = jax.lax.stop_gradient(item['w'])
+            u = uv[key]['u']
+            v = uv[key]['v']
+            w = item['w']
             for i in range(max_iter):
                 v_ = jnp.matmul(w, u)
                 u_ = jnp.matmul(v, w)
