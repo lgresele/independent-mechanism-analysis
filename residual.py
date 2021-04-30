@@ -119,60 +119,64 @@ def make_weights_triangular(params, masks, keywords=['residual', 'linear']):
     return hk.data_structures.to_immutable_dict(params_new)
 
 
-def spectral_norm_init(params, rng_key, keywords=['residual', 'linear']):
+def spectral_norm_init(params, rng_key):
     uv = {}
     for key, item in params.items():
-        if np.all([keyw in key for keyw in keywords]):
-            uv[key] = {}
-            rng_key, rng_subkey = jax.random.split(rng_key)
-            s = params[key]['w'].shape
-            u = jax.random.normal(rng_subkey, (s[1],))
-            uv[key]['u'] = u / jnp.linalg.norm(u)
-            rng_key, rng_subkey = jax.random.split(rng_key)
-            v = jax.random.normal(rng_subkey, (s[0],))
-            uv[key]['v'] = v / jnp.linalg.norm(v)
+        uv[key] = {}
+        rng_key, rng_subkey = jax.random.split(rng_key)
+        s = params[key]['w'].shape
+        u = jax.random.normal(rng_subkey, (s[1],))
+        uv[key]['u'] = u / jnp.linalg.norm(u)
+        rng_key, rng_subkey = jax.random.split(rng_key)
+        v = jax.random.normal(rng_subkey, (s[0],))
+        uv[key]['v'] = v / jnp.linalg.norm(v)
     return uv
 
-def spectral_normalization(params, uv, keywords=['residual', 'linear'], coeff=0.97,
-                           max_iter=100, atol=1e-3, rtol=1e-3):
+def spectral_normalization(params, uv, coeff=0.97, max_iter=100, atol=1e-3, rtol=1e-3):
     params_new = {}
+    # Prepare functions for power iteration
+    def power_iter(arg):
+        i, u, v, w = arg
+        v_ = jnp.matmul(w, u)
+        u_ = jnp.matmul(v, w)
+        i, v, v_ = jax.lax.cond(jnp.linalg.norm(v_) > 0,
+                                lambda arg: (arg[0], arg[2] / jnp.linalg.norm(arg[2]), arg[1]),
+                                lambda arg: (max_iter, arg[1], arg[2]),
+                                [i, v, v_])
+        i, u, u_ = jax.lax.cond(jnp.linalg.norm(u_) > 0,
+                                lambda arg: (arg[0], arg[2] / jnp.linalg.norm(arg[2]), arg[1]),
+                                lambda arg: (max_iter, arg[1], arg[2]),
+                                [i, u, u_])
+        err_u_ = jnp.concatenate([jnp.linalg.norm(u - u_)[None],
+                                  jnp.linalg.norm(u + u_)[None]])
+        err_u = jnp.min(err_u_) / (len(u) ** 0.5)
+        err_v_ = jnp.concatenate([jnp.linalg.norm(v - v_)[None],
+                                  jnp.linalg.norm(v + v_)[None]])
+        err_v = jnp.min(err_v_) / (len(v) ** 0.5)
+        tol_u = atol + rtol * jnp.max(jnp.abs(u))
+        tol_v = atol + rtol * jnp.max(jnp.abs(v))
+        i = jax.lax.cond(jnp.logical_and(err_u < tol_u, err_v < tol_v),
+                         lambda arg: max_iter, lambda arg: arg, i)
+        i += 1
+        return [i, u, v, w]
+    def power_iter_cond(arg):
+        return arg[0] < max_iter
+
+    # Do spectral normalization
     for key, item in params.items():
-        if np.all([keyw in key for keyw in keywords]):
-            params_new[key] = {}
-            u = uv[key]['u']
-            v = uv[key]['v']
-            w = item['w']
-            for i in range(max_iter):
-                v_ = jnp.matmul(w, u)
-                u_ = jnp.matmul(v, w)
-                if jnp.linalg.norm(v_) > 0:
-                    v, v_ = v_, v
-                    v = v / jnp.linalg.norm(v)
-                else:
-                    break
-                if jnp.linalg.norm(u_) > 0:
-                    u, u_ = u_, u
-                    u = u / jnp.linalg.norm(u)
-                else:
-                    break
-                if atol is not None and rtol is not None:
-                    err_u_ = jnp.concatenate([jnp.linalg.norm(u - u_)[None],
-                                              jnp.linalg.norm(u + u_)[None]])
-                    err_u = jnp.min(err_u_) / (len(u) ** 0.5)
-                    err_v_ = jnp.concatenate([jnp.linalg.norm(v - v_)[None],
-                                              jnp.linalg.norm(v + v_)[None]])
-                    err_v = jnp.min(err_v_) / (len(v) ** 0.5)
-                    tol_u = atol + rtol * jnp.max(u)
-                    tol_v = atol + rtol * jnp.max(v)
-                    if err_u < tol_u and err_v < tol_v:
-                        break
-            sigma = jnp.abs(jnp.dot(v, jnp.matmul(w, u)))[None]
-            uv[key]['u'] = u
-            uv[key]['v'] = v
-            factor = jnp.min(jnp.concatenate([coeff / sigma, jnp.ones_like(sigma)]))
-            params_new[key]['w'] = item['w'] * factor
-            params_new[key]['b'] = item['b']
-            params_new[key] = hk.data_structures.to_immutable_dict(params_new[key])
-        else:
-            params_new[key] = item
+        params_new[key] = {}
+        u = uv[key]['u']
+        v = uv[key]['v']
+        w = item['w']
+        # Power iteration
+        i = jnp.array(0)
+        i, u, v, w = jax.lax.while_loop(power_iter_cond, power_iter, [i, u, v, w])
+        # Update variables
+        sigma = jnp.abs(jnp.dot(v, jnp.matmul(w, u)))[None]
+        uv[key]['u'] = u
+        uv[key]['v'] = v
+        factor = jnp.min(jnp.concatenate([coeff / sigma, jnp.ones_like(sigma)]))
+        params_new[key]['w'] = item['w'] * factor
+        params_new[key]['b'] = item['b']
+        params_new[key] = hk.data_structures.to_immutable_dict(params_new[key])
     return hk.data_structures.to_immutable_dict(params_new), uv
