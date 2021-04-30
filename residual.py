@@ -14,14 +14,14 @@ class TriangularResidual(distrax.Bijector):
             self.net_jac = jax.vmap(jax.jacfwd(self.net))
 
     def forward_and_log_det(self, x):
-        y = x + self.net(x)
-        logdet = self._logdetgrad(x)
+        y = self._inverse_fix_point(x)
+        logdet = self._logdetgrad(y)
         return y, logdet
 
     def inverse_and_log_det(self, y):
         # Optional. Can be omitted if inverse methods are not needed.
-        x = self._inverse_fix_point(y)
-        logdet = -self._logdetgrad(x)
+        x = y + self.net(y)
+        logdet = -self._logdetgrad(y)
         return x, logdet
 
     def _inverse_fix_point(self, y, atol=1e-5, rtol=1e-5, max_iter=1000):
@@ -33,14 +33,20 @@ class TriangularResidual(distrax.Bijector):
         :param max_iter: Maximum number of iterations to apply
         :return: Inverse, i.e. x
         """
-        x, x_prev= y - self.net(y), y
-        i = 0
+        x, x_prev = y - self.net(y), y
+        i = jnp.array(0)
         tol = atol + jnp.abs(y) * rtol
-        while not jnp.all((x - x_prev) ** 2 / tol < 1):
+        def fix_point_update(arg):
+            i, x, x_prev, tol = arg
             x, x_prev = y - self.net(x), x
+            tol = atol + jnp.abs(y) * rtol
             i += 1
-            if i > max_iter:
-                break
+            return [i, x, x_prev, tol]
+        def fix_point_cond(arg):
+            i, x, x_prev, tol = arg
+            return jnp.logical_or(i < max_iter, jnp.all((x - x_prev) ** 2 / tol > 1))
+        i, x, x_prev, tol = jax.lax.while_loop(fix_point_cond, fix_point_update,
+                                               [i, x, x_prev, tol])
         return x
 
     def _logdetgrad(self, x):
@@ -48,7 +54,7 @@ class TriangularResidual(distrax.Bijector):
             jac = self.net_jac(x)
             det = jnp.abs((jac[:, 0, 0] + 1) * (jac[:, 1, 1] + 1)
                           - jac[:, 0, 1] * jac[:, 1, 0])
-            log_det = jnp.log(det).reshape(-1, 1)
+            log_det = jnp.log(det)
         else:
             log_det = 0
         return log_det
