@@ -170,3 +170,29 @@ def build_conformal_map(nonlinearity):
         return re, imag
     
     return conformal_map, conformal_map_gridplot
+
+
+def build_moebius_transform(alpha, A, a, b, epsilon=2):
+    '''
+    Implements Möbius transformations for D>=2, based on:
+    https://en.wikipedia.org/wiki/Liouville%27s_theorem_(conformal_mappings)
+    
+    alpha: a scalar
+    A: an orthogonal matrix
+    a, b: vectors in \RR^D (dimension of the data)
+    '''
+    def mixing_moebius_transform(x):
+        if epsilon==2:
+            frac = np.sum((x-a)**2) #is this correct?
+            frac = frac**(-1)
+        else:
+            diff = np.abs(x-a)
+            
+            frac = 1.0
+        return b + frac * alpha * A @ (x - a)
+    
+    def unmixing_moebius_transform(x):
+        # TO DO: implement inverse of the above transformation
+        return 
+    
+    return mixing_moebius_transform, unmixing_moebius_transform
