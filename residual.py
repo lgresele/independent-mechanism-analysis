@@ -6,7 +6,7 @@ import haiku as hk
 
 class TriangularResidual(distrax.Bijector):
 
-    def __init__(self, hidden_units, zeros=False, brute_force_log_det=True, name='residual'):
+    def __init__(self, hidden_units, zeros=True, brute_force_log_det=True, name='residual'):
         super().__init__(1)
         self.net = mlp(hidden_units, zeros, name)
         self.brute_force_log_det = brute_force_log_det
@@ -15,13 +15,13 @@ class TriangularResidual(distrax.Bijector):
 
     def forward_and_log_det(self, x):
         y = self._inverse_fix_point(x)
-        logdet = self._logdetgrad(y)
+        logdet = -self._logdetgrad(y)
         return y, logdet
 
     def inverse_and_log_det(self, y):
         # Optional. Can be omitted if inverse methods are not needed.
         x = y + self.net(y)
-        logdet = -self._logdetgrad(y)
+        logdet = self._logdetgrad(y)
         return x, logdet
 
     def _inverse_fix_point(self, y, atol=1e-5, rtol=1e-5, max_iter=1000):
@@ -52,9 +52,9 @@ class TriangularResidual(distrax.Bijector):
     def _logdetgrad(self, x):
         if self.brute_force_log_det:
             jac = self.net_jac(x)
-            det = jnp.abs((jac[:, 0, 0] + 1) * (jac[:, 1, 1] + 1)
-                          - jac[:, 0, 1] * jac[:, 1, 0])
-            log_det = jnp.log(det)
+            det = (jac[:, 0, 0] + 1) * (jac[:, 1, 1] + 1) \
+                  - jac[:, 0, 1] * jac[:, 1, 0]
+            log_det = jnp.log(jnp.abs(det))
         else:
             log_det = 0
         return log_det
