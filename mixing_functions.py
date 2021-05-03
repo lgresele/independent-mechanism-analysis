@@ -196,3 +196,37 @@ def build_moebius_transform(alpha, A, a, b, epsilon=2):
         return 
     
     return mixing_moebius_transform, unmixing_moebius_transform
+
+
+
+'''
+Building measure preserving automorphisms based on appendix D.1 in the paper:
+https://arxiv.org/abs/1907.04809
+'''
+
+def build_automorphism(A):
+    '''
+    Takes an orthogonal matrix A, returns a measure preserving automorphism
+    On the unit square (cube?) and its inverse
+    '''
+    def measure_preserving(z):
+        # apply inverse cdf transform
+        z_gauss = special.erfinv(2*z - 1.0)
+        # apply rotation
+        z_gauss = A @ z_gauss
+        # apply cdf transform
+        z_modified = 0.5*(1.0 + special.erf(z_gauss))
+        return z_modified
+    
+    A_inv = np.linalg.inv(A) 
+    
+    def measure_preserving_inv(z):
+        # apply cdf transform
+        z_gauss = special.erfinv(2*z - 1.0)
+        # apply (inverse) rotation
+        z_gauss = A_inv @ z_gauss
+        # apply inverse cdf transform
+        z_modified = 0.5*(1.0 + special.erf(z_gauss))
+        return z_modified
+    
+    return measure_preserving, measure_preserving_inv
