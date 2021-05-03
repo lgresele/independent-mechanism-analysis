@@ -170,3 +170,63 @@ def build_conformal_map(nonlinearity):
         return re, imag
     
     return conformal_map, conformal_map_gridplot
+
+
+def build_moebius_transform(alpha, A, a, b, epsilon=2):
+    '''
+    Implements Möbius transformations for D>=2, based on:
+    https://en.wikipedia.org/wiki/Liouville%27s_theorem_(conformal_mappings)
+    
+    alpha: a scalar
+    A: an orthogonal matrix
+    a, b: vectors in \RR^D (dimension of the data)
+    '''
+    def mixing_moebius_transform(x):
+        if epsilon==2:
+            frac = np.sum((x-a)**2) #is this correct?
+            frac = frac**(-1)
+        else:
+            diff = np.abs(x-a)
+            
+            frac = 1.0
+        return b + frac * alpha * A @ (x - a)
+    
+    def unmixing_moebius_transform(x):
+        # TO DO: implement inverse of the above transformation
+        return 
+    
+    return mixing_moebius_transform, unmixing_moebius_transform
+
+
+
+'''
+Building measure preserving automorphisms based on appendix D.1 in the paper:
+https://arxiv.org/abs/1907.04809
+'''
+
+def build_automorphism(A):
+    '''
+    Takes an orthogonal matrix A, returns a measure preserving automorphism
+    On the unit square (cube?) and its inverse
+    '''
+    def measure_preserving(z):
+        # apply inverse cdf transform
+        z_gauss = special.erfinv(2*z - 1.0)
+        # apply rotation
+        z_gauss = A @ z_gauss
+        # apply cdf transform
+        z_modified = 0.5*(1.0 + special.erf(z_gauss))
+        return z_modified
+    
+    A_inv = np.linalg.inv(A) 
+    
+    def measure_preserving_inv(z):
+        # apply cdf transform
+        z_gauss = special.erfinv(2*z - 1.0)
+        # apply (inverse) rotation
+        z_gauss = A_inv @ z_gauss
+        # apply inverse cdf transform
+        z_modified = 0.5*(1.0 + special.erf(z_gauss))
+        return z_modified
+    
+    return measure_preserving, measure_preserving_inv
