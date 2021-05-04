@@ -6,9 +6,10 @@ import haiku as hk
 
 class TriangularResidual(distrax.Bijector):
 
-    def __init__(self, hidden_units, zeros=True, brute_force_log_det=True, name='residual'):
+    def __init__(self, hidden_units, zeros=True, brute_force_log_det=True,
+                 act='lipswish', name='residual'):
         super().__init__(1)
-        self.net = mlp(hidden_units, zeros, name)
+        self.net = mlp(hidden_units, zeros, act, name)
         self.brute_force_log_det = brute_force_log_det
         if self.brute_force_log_det:
             self.net_jac = jax.vmap(jax.jacfwd(self.net))
