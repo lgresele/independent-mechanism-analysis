@@ -60,15 +60,26 @@ class TriangularResidual(distrax.Bijector):
         return log_det
 
 
-def mlp(hidden_units, zeros=True, name=None) -> hk.Sequential:
+def mlp(hidden_units, zeros=True, act='lipswish', name=None) -> hk.Sequential:
     """
     Returns an haiku MLP with relu nonlinearlties and a number
     of hidden units specified by an array
     :param hidden_units: Array containing number of hidden units of each layer
     :param zeros: Flag, if true weights and biases of last layer are
     initialized as zero
+    :param act: Activation function, can be relu, elu or lipswish
+    :param name: Name of hidden layer
     :return: MLP as hk.Sequential
     """
+    if act == 'relu':
+        act_fn = jax.nn.relu
+    elif act == 'lipswish':
+        act_fn = lambda x: jax.nn.swish(x) / 1.1
+    elif act == 'elu':
+        act_fn = jax.nn.elu
+    else:
+        raise NotImplementedError('The activation function ' + act
+                                  + ' is not implemented.')
     layers = []
     if name is None:
         prefix = ''
@@ -76,7 +87,7 @@ def mlp(hidden_units, zeros=True, name=None) -> hk.Sequential:
         prefix = name + '_'
     for i in range(len(hidden_units) - 1):
         layer_name = prefix + 'linear_' + str(i)
-        layers += [hk.Linear(hidden_units[i], name=layer_name), jax.nn.relu]
+        layers += [hk.Linear(hidden_units[i], name=layer_name), act_fn]
     layer_name = prefix + 'linear_' + str(i + 1)
     if zeros:
         layers += [hk.Linear(hidden_units[-1], w_init=jnp.zeros, b_init=jnp.zeros,
