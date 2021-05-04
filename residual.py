@@ -5,9 +5,20 @@ import numpy as np
 import haiku as hk
 
 class TriangularResidual(distrax.Bijector):
+    """
+    Residual flow layer with triangular Jacobian
+    """
 
     def __init__(self, hidden_units, zeros=True, brute_force_log_det=True,
                  act='elu', name='residual'):
+        """
+        Constructor
+        :param hidden_units: List with number of hidden units per layer
+        :param zeros: Flag whether last layer of NN shall be initialized with zeros
+        :param brute_force_log_det: Flag whether to compute log_det explicitly
+        :param act: Activation function to be used
+        :param name: Name of module
+        """
         super().__init__(1)
         self.net = mlp(hidden_units, zeros, act, name)
         self.brute_force_log_det = brute_force_log_det
@@ -104,6 +115,11 @@ def mlp(hidden_units, zeros=True, act='lipswish', name=None) -> hk.Sequential:
 
 
 def masks_triangular_weights(hidden_units):
+    """
+    Generates masks to make weights such that Jacobian is triangular
+    :param hidden_units: Number of hidden units per layer
+    :return: List of masks as jnp array
+    """
     total_hu = jnp.sum(jnp.array(hidden_units))
     ndims = len(hidden_units)
     # Create masks
@@ -124,6 +140,15 @@ def masks_triangular_weights(hidden_units):
 
 
 def make_weights_triangular(params, masks, keywords=['residual', 'linear']):
+    """
+    Function to make weights such that Jacobian is triangular with given
+    masks
+    :param params: Parameter of the residual flow model
+    :param masks: Masks to make weights block-triangular
+    :param keywords: List of keywords to be checked for in the parameter
+    list
+    :return: Modified parameters
+    """
     params_new = {}
     for key, item in params.items():
         if np.all([keyw in key for keyw in keywords]):
@@ -143,6 +168,12 @@ def make_weights_triangular(params, masks, keywords=['residual', 'linear']):
 
 
 def spectral_norm_init(params, rng_key):
+    """
+    Generate vectors needed for power iteration in spectral normalization
+    :param params: Parameters of residual flow model
+    :param rng_key: RNG key used to generate vectors
+    :return: Dict of vectors
+    """
     uv = {}
     for key, item in params.items():
         uv[key] = {}
@@ -155,7 +186,18 @@ def spectral_norm_init(params, rng_key):
         uv[key]['v'] = v / jnp.linalg.norm(v)
     return uv
 
-def spectral_normalization(params, uv, coeff=0.97, max_iter=100, atol=1e-3, rtol=1e-3):
+def spectral_normalization(params, uv, coef=0.97, max_iter=100, atol=1e-3,
+                           rtol=1e-3):
+    """
+    Spectral normalization via power iteration of residual flow layers
+    :param params: Parameters of residual flow model
+    :param uv: Vectors used for power iteration
+    :param coef: Coefficient used to downscale spectral norm
+    :param max_iter: Maximum number of iterations used in power iteration
+    :param atol: Absolute tolerance
+    :param rtol: Relative tolerance
+    :return: Normalized parameters
+    """
     params_new = {}
     # Prepare functions for power iteration
     def power_iter(arg):
@@ -198,7 +240,7 @@ def spectral_normalization(params, uv, coeff=0.97, max_iter=100, atol=1e-3, rtol
         sigma = jnp.abs(jnp.dot(v, jnp.matmul(w, u)))[None]
         uv[key]['u'] = u
         uv[key]['v'] = v
-        factor = jnp.min(jnp.concatenate([coeff / sigma, jnp.ones_like(sigma)]))
+        factor = jnp.min(jnp.concatenate([coef / sigma, jnp.ones_like(sigma)]))
         params_new[key]['w'] = item['w'] * factor
         params_new[key]['b'] = item['b']
         params_new[key] = hk.data_structures.to_immutable_dict(params_new[key])
