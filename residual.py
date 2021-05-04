@@ -7,7 +7,7 @@ import haiku as hk
 class TriangularResidual(distrax.Bijector):
 
     def __init__(self, hidden_units, zeros=True, brute_force_log_det=True,
-                 act='lipswish', name='residual'):
+                 act='elu', name='residual'):
         super().__init__(1)
         self.net = mlp(hidden_units, zeros, act, name)
         self.brute_force_log_det = brute_force_log_det
@@ -19,11 +19,16 @@ class TriangularResidual(distrax.Bijector):
         logdet = -self._logdetgrad(y)
         return y, logdet
 
+    def forward(self, x):
+        return self._inverse_fix_point(x)
+
     def inverse_and_log_det(self, y):
-        # Optional. Can be omitted if inverse methods are not needed.
         x = y + self.net(y)
         logdet = self._logdetgrad(y)
         return x, logdet
+
+    def inverse(self, y):
+        return y + self.net(y)
 
     def _inverse_fix_point(self, y, atol=1e-5, rtol=1e-5, max_iter=1000):
         """
