@@ -10,7 +10,7 @@ class TriangularResidual(distrax.Bijector):
     """
 
     def __init__(self, hidden_units, zeros=True, brute_force_log_det=True,
-                 act='elu', name='residual'):
+                 act='lipswish', name='residual'):
         """
         Constructor
         :param hidden_units: List with number of hidden units per layer
@@ -91,7 +91,7 @@ def mlp(hidden_units, zeros=True, act='lipswish', name=None) -> hk.Sequential:
     if act == 'relu':
         act_fn = jax.nn.relu
     elif act == 'lipswish':
-        act_fn = lambda x: jax.nn.swish(x) / 1.1
+        act_fn = None
     elif act == 'elu':
         act_fn = jax.nn.elu
     else:
@@ -103,6 +103,8 @@ def mlp(hidden_units, zeros=True, act='lipswish', name=None) -> hk.Sequential:
     else:
         prefix = name + '_'
     for i in range(len(hidden_units) - 1):
+        if act == 'lipswish':
+            act_fn = LipSwish(name=prefix + 'lipswish_' + str(i))
         layer_name = prefix + 'linear_' + str(i)
         layers += [hk.Linear(hidden_units[i], name=layer_name), act_fn]
     layer_name = prefix + 'linear_' + str(i + 1)
@@ -112,6 +114,15 @@ def mlp(hidden_units, zeros=True, act='lipswish', name=None) -> hk.Sequential:
     else:
         layers += [hk.Linear(hidden_units[-1], name=layer_name)]
     return hk.Sequential(layers)
+
+class LipSwish(hk.Module):
+
+    def __init__(self, name=None):
+        super().__init__(name=name)
+
+    def __call__(self, x):
+        beta = hk.get_parameter('beta', shape=[1], dtype=x.dtype, init=jnp.zeros)
+        return jax.nn.swish(jax.nn.softplus(beta + 0.5) * x) / 1.1
 
 
 def masks_triangular_weights(hidden_units):
@@ -137,7 +148,6 @@ def masks_triangular_weights(hidden_units):
         mask2[thu:, i - 1] = np.zeros(total_hu - thu)
         hu = hu_
     return [jnp.array(mask0), jnp.array(mask1), jnp.array(mask2)]
-
 
 def make_weights_triangular(params, masks, keywords=['residual', 'linear']):
     """
@@ -167,7 +177,7 @@ def make_weights_triangular(params, masks, keywords=['residual', 'linear']):
     return hk.data_structures.to_immutable_dict(params_new)
 
 
-def spectral_norm_init(params, rng_key):
+def spectral_norm_init(params, rng_key, keywords=['residual', 'linear']):
     """
     Generate vectors needed for power iteration in spectral normalization
     :param params: Parameters of residual flow model
@@ -176,14 +186,15 @@ def spectral_norm_init(params, rng_key):
     """
     uv = {}
     for key, item in params.items():
-        uv[key] = {}
-        rng_key, rng_subkey = jax.random.split(rng_key)
-        s = params[key]['w'].shape
-        u = jax.random.normal(rng_subkey, (s[1],))
-        uv[key]['u'] = u / jnp.linalg.norm(u)
-        rng_key, rng_subkey = jax.random.split(rng_key)
-        v = jax.random.normal(rng_subkey, (s[0],))
-        uv[key]['v'] = v / jnp.linalg.norm(v)
+        if np.all([keyw in key for keyw in keywords]):
+            uv[key] = {}
+            rng_key, rng_subkey = jax.random.split(rng_key)
+            s = params[key]['w'].shape
+            u = jax.random.normal(rng_subkey, (s[1],))
+            uv[key]['u'] = u / jnp.linalg.norm(u)
+            rng_key, rng_subkey = jax.random.split(rng_key)
+            v = jax.random.normal(rng_subkey, (s[0],))
+            uv[key]['v'] = v / jnp.linalg.norm(v)
     return uv
 
 def spectral_normalization(params, uv, coef=0.97, max_iter=100, atol=1e-3,
@@ -229,19 +240,22 @@ def spectral_normalization(params, uv, coef=0.97, max_iter=100, atol=1e-3,
 
     # Do spectral normalization
     for key, item in params.items():
-        params_new[key] = {}
-        u = uv[key]['u']
-        v = uv[key]['v']
-        w = item['w']
-        # Power iteration
-        i = jnp.array(0)
-        i, u, v, w = jax.lax.while_loop(power_iter_cond, power_iter, [i, u, v, w])
-        # Update variables
-        sigma = jnp.abs(jnp.dot(v, jnp.matmul(w, u)))[None]
-        uv[key]['u'] = u
-        uv[key]['v'] = v
-        factor = jnp.min(jnp.concatenate([coef / sigma, jnp.ones_like(sigma)]))
-        params_new[key]['w'] = item['w'] * factor
-        params_new[key]['b'] = item['b']
-        params_new[key] = hk.data_structures.to_immutable_dict(params_new[key])
+        if key in uv.keys():
+            params_new[key] = {}
+            u = uv[key]['u']
+            v = uv[key]['v']
+            w = item['w']
+            # Power iteration
+            i = jnp.array(0)
+            i, u, v, w = jax.lax.while_loop(power_iter_cond, power_iter, [i, u, v, w])
+            # Update variables
+            sigma = jnp.abs(jnp.dot(v, jnp.matmul(w, u)))[None]
+            uv[key]['u'] = u
+            uv[key]['v'] = v
+            factor = jnp.min(jnp.concatenate([coef / sigma, jnp.ones_like(sigma)]))
+            params_new[key]['w'] = item['w'] * factor
+            params_new[key]['b'] = item['b']
+            params_new[key] = hk.data_structures.to_immutable_dict(params_new[key])
+        else:
+            params_new[key] = item
     return hk.data_structures.to_immutable_dict(params_new), uv
