@@ -35,6 +35,10 @@ ckpt_dir = os.path.join(root, 'checkpoints')
 plot_dir = os.path.join(root, 'plots')
 log_dir = os.path.join(root, 'log')
 data_dir = os.path.join(root, 'data')
+# Create dirs if not existent
+for dir in [ckpt_dir, plot_dir, log_dir, data_dir]:
+    if not os.path.isdir(dir):
+        os.mkdir(dir)
 
 
 # Data generation
