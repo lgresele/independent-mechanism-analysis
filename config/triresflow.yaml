@@ -1,0 +1,13 @@
+# Config file specifying the setup of a Triangular Residual Flow
+
+data:
+  n: 10000
+  dim: 2
+
+model:
+  nlayers: 64
+
+training:
+  jax_seed: 0
+  np_seed: 0
+  save_root: ./
