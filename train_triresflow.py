@@ -177,15 +177,15 @@ zz = jnp.column_stack([xx.reshape(-1), yy.reshape(-1)])
 
 # Iteration
 @jax.jit
-def step(i, opt_state, uv, x):
+def step(it, opt_state, uv, x):
     params = get_params(opt_state)
     params = make_weights_triangular(params, masks) # makes Jacobian triangular
     params, uv = spectral_normalization(params, uv)
     params_flat = jax.tree_util.tree_flatten(params)[0]
-    for i in range(len(params_flat)):
-        opt_state.packed_state[i][0] = params_flat[i]
+    for ind in range(len(params_flat)):
+        opt_state.packed_state[ind][0] = params_flat[ind]
     value, grads = jax.value_and_grad(loss, 0)(params, x)
-    opt_out = opt_update(i, grads, opt_state)
+    opt_out = opt_update(it, grads, opt_state)
     return value, opt_out, uv
 
 
