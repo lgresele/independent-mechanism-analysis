@@ -192,6 +192,10 @@ def step(it, opt_state, uv, x):
 # Training
 for it in range(num_iter):
     x = X_train[np.random.choice(N, batch_size)]
+    print(x)
+    print(opt_state)
+    print(uv)
+    print(it)
     loss_val, opt_state, uv = step(it, opt_state, uv, x)
 
     loss_append = np.array([[it + 1, loss_val.item()]])
