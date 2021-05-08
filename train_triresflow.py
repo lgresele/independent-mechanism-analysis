@@ -176,7 +176,7 @@ xx, yy = jnp.meshgrid(x, y)
 zz = jnp.column_stack([xx.reshape(-1), yy.reshape(-1)])
 
 # Iteration
-@jax.jit
+@jax.partial(jax.jit, static_argnums=0)
 def step(it, opt_state, uv, x):
     params = get_params(opt_state)
     params = make_weights_triangular(params, masks) # makes Jacobian triangular
@@ -192,10 +192,6 @@ def step(it, opt_state, uv, x):
 # Training
 for it in range(num_iter):
     x = X_train[np.random.choice(N, batch_size)]
-    print(x)
-    print(opt_state)
-    print(uv)
-    print(it)
     loss_val, opt_state, uv = step(it, opt_state, uv, x)
 
     loss_append = np.array([[it + 1, loss_val.item()]])
