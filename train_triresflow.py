@@ -250,6 +250,7 @@ for it in range(num_iter):
         plt.close()
 
         prob = jnp.exp(logp.apply(params_eval, None, zz))
+        plt.figure(figsize=(12, 12))
         plt.pcolormesh(np.array(xx), np.array(yy), np.array(prob.reshape(npoints, npoints)))
         plt.savefig(os.path.join(plot_dir, 'pdf_%06i.png' % (it + 1)))
         plt.close()
