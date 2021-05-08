@@ -15,7 +15,8 @@ def cart2pol(x, y):
     phi = np.arctan2(y, x)
     return(rho, phi)
 
-def scatterplot_variables(X, title, colors='None', cmap='hsv', savefig=False, fname="scatterplot"):
+def scatterplot_variables(X, title, colors='None', cmap='hsv', savefig=False,
+                          fname="scatterplot", show=True):
     '''
     Scatterplot of 2d variables, can be used both for the mixing and the unmixing
     X : (N,D) array -- N samples, D dimensions (D=2).ss
@@ -38,12 +39,13 @@ def scatterplot_variables(X, title, colors='None', cmap='hsv', savefig=False, fn
         plt.ylabel('y-axis')
     plt.title(title)
     plt.gca().set_aspect('equal', adjustable='box')
-    if savefig==True:
+    if savefig:
         plt.savefig(fname, dpi=None, facecolor='w', edgecolor='w',
             orientation='portrait', papertype=None, format=None,
             transparent=False, bbox_inches=None, pad_inches=0.1,
             frameon=None, metadata=None)
-    plt.show()
+    if show:
+        plt.show()
     
 def plot_histograms(hist_values, labels, xlabel):    
     '''
