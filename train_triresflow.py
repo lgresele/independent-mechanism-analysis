@@ -65,10 +65,10 @@ _, colors_test = cart2pol(S_test[:, 0], S_test[:, 1])
 
 # Plot the sources
 scatterplot_variables(S_train, 'Sources (train)', colors=colors_train, savefig=True,
-                      fname=os.path.join(plot_dir, 'data_sources_train.png'))
+                      fname=os.path.join(plot_dir, 'data_sources_train.png'), show=False)
 plt.close()
 scatterplot_variables(S_test, 'Sources (test)', colors=colors_train, savefig=True,
-                      fname=os.path.join(plot_dir, 'data_sources_test.png'))
+                      fname=os.path.join(plot_dir, 'data_sources_test.png'), show=False)
 plt.close()
 
 from mixing_functions import build_moebius_transform
@@ -87,8 +87,7 @@ while len(a) < D:
 a = jnp.array(a) # a vector in \RR^D
 b = jnp.zeros(D) # a vector in \RR^D
 # Save data
-moeb_params = jnp.array({'A': A, 'a': a})
-jnp.save(os.path.join(data_dir, 'moebius_transform_params.npy'), moeb_params)
+jnp.save(os.path.join(data_dir, 'moebius_transform_params.npy'), {'A': A, 'a': a})
 
 mixing, _ = build_moebius_transform(alpha, A, a, b, epsilon=2)
 mixing_batched = jax.vmap(mixing)
@@ -101,10 +100,10 @@ X_test -= jnp.mean(X_train, axis=0)
 X_test /= jnp.std(X_train, axis=0)
 
 scatterplot_variables(X_train, 'Observations (train)', colors=colors_train, savefig=True,
-                      fname=os.path.join(plot_dir, 'data_observations_train.png'))
+                      fname=os.path.join(plot_dir, 'data_observations_train.png'), show=False)
 plt.close()
 scatterplot_variables(X_test, 'Observations (test)', colors=colors_train, savefig=True,
-                      fname=os.path.join(plot_dir, 'data_observations_test.png'))
+                      fname=os.path.join(plot_dir, 'data_observations_test.png'), show=False)
 plt.close()
 
 
@@ -233,7 +232,6 @@ for it in range(num_iter):
         params_save, uv_save = spectral_normalization(params_save, uv)
 
         jnp.save(os.path.join(ckpt_dir, 'model_%06i.npy' % (it + 1)),
-                 jnp.array(hk.data_structures.to_mutable_dict(params_save)))
+                 hk.data_structures.to_mutable_dict(params_save))
 
-        jnp.save(os.path.join(ckpt_dir, 'uv_%06i.npy' % (it + 1)),
-                 jnp.array(uv_save))
+        jnp.save(os.path.join(ckpt_dir, 'uv_%06i.npy' % (it + 1)), uv_save)
