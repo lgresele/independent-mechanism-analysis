@@ -102,7 +102,7 @@ X_test /= jnp.std(X_train, axis=0)
 scatterplot_variables(X_train, 'Observations (train)', colors=colors_train, savefig=True,
                       fname=os.path.join(plot_dir, 'data_observations_train.png'), show=False)
 plt.close()
-scatterplot_variables(X_test, 'Observations (test)', colors=colors_train, savefig=True,
+scatterplot_variables(X_test, 'Observations (test)', colors=colors_test, savefig=True,
                       fname=os.path.join(plot_dir, 'data_observations_test.png'), show=False)
 plt.close()
 
@@ -243,7 +243,7 @@ for it in range(num_iter):
                                       jax.scipy.stats.norm.cdf(S_rec[:, 1])])
         S_rec_uni -= 0.5
         scatterplot_variables(S_rec_uni, 'Reconstructed observations (test)',
-                              colors=colors_train, savefig=True, show=False,
+                              colors=colors_test, savefig=True, show=False,
                               fname=os.path.join(plot_dir, 'rec_observations_test_%06i.png' % (it + 1)))
         plt.close()
 
