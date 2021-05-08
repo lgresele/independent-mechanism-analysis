@@ -233,18 +233,18 @@ for it in range(num_iter):
         S_rec_uni = jnp.column_stack([jax.scipy.stats.norm.cdf(S_rec[:, 0]),
                                       jax.scipy.stats.norm.cdf(S_rec[:, 1])])
         S_rec_uni -= 0.5
-        scatterplot_variables(S_rec_uni, 'Reconstructed observations (train)',
+        scatterplot_variables(S_rec_uni, 'Reconstructed sources (train)',
                               colors=colors_train, savefig=True, show=False,
-                              fname=os.path.join(plot_dir, 'rec_observations_train_%06i.png' % (it + 1)))
+                              fname=os.path.join(plot_dir, 'rec_sources_train_%06i.png' % (it + 1)))
         plt.close()
 
         S_rec = inv_map.apply(params_eval, None, X_test)
         S_rec_uni = jnp.column_stack([jax.scipy.stats.norm.cdf(S_rec[:, 0]),
                                       jax.scipy.stats.norm.cdf(S_rec[:, 1])])
         S_rec_uni -= 0.5
-        scatterplot_variables(S_rec_uni, 'Reconstructed observations (test)',
+        scatterplot_variables(S_rec_uni, 'Reconstructed sources (test)',
                               colors=colors_test, savefig=True, show=False,
-                              fname=os.path.join(plot_dir, 'rec_observations_test_%06i.png' % (it + 1)))
+                              fname=os.path.join(plot_dir, 'rec_sources_test_%06i.png' % (it + 1)))
         plt.close()
 
         prob = jnp.exp(logp.apply(params_eval, None, zz))
