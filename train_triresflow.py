@@ -185,7 +185,7 @@ def step(it, opt_state, uv, x):
     for ind in range(len(params_flat)):
         opt_state.packed_state[ind][0] = params_flat[ind]
     value, grads = jax.value_and_grad(loss, 0)(params, x)
-    opt_out = opt_update(1. * it, grads, opt_state)
+    opt_out = opt_update(it, grads, opt_state)
     return value, opt_out, uv
 
 
