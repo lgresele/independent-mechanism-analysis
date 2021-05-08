@@ -67,7 +67,7 @@ _, colors_test = cart2pol(S_test[:, 0], S_test[:, 1])
 scatterplot_variables(S_train, 'Sources (train)', colors=colors_train, savefig=True,
                       fname=os.path.join(plot_dir, 'data_sources_train.png'), show=False)
 plt.close()
-scatterplot_variables(S_test, 'Sources (test)', colors=colors_train, savefig=True,
+scatterplot_variables(S_test, 'Sources (test)', colors=colors_test, savefig=True,
                       fname=os.path.join(plot_dir, 'data_sources_test.png'), show=False)
 plt.close()
 
@@ -198,10 +198,12 @@ for it in range(num_iter):
     loss_hist = np.concatenate([loss_hist, loss_append])
 
     if (it + 1) % log_iter == 0:
+        # Get params
         params_eval = get_params(opt_state)
         params_eval = make_weights_triangular(params_eval, masks)
         params_eval, _ = spectral_normalization(params_eval, uv)
 
+        # Measures
         log_p = -loss(params_eval, X_train)
         log_p_append = np.array([[it + 1, log_p.item()]])
         log_p_train_hist = np.concatenate([log_p_train_hist, log_p_append])
@@ -225,6 +227,31 @@ for it in range(num_iter):
         cima_test_hist = np.concatenate([cima_test_hist, cima_append])
         np.savetxt(os.path.join(log_dir, 'cima_test.csv'), cima_test_hist,
                    delimiter=',', header='it,cima', comments='')
+
+        # Plots
+        S_rec = inv_map.apply(params_eval, None, X_train)
+        S_rec_uni = jnp.column_stack([jax.scipy.stats.norm.cdf(S_rec[:, 0]),
+                                      jax.scipy.stats.norm.cdf(S_rec[:, 1])])
+        S_rec_uni -= 0.5
+        scatterplot_variables(S_rec_uni, 'Reconstructed observations (train)',
+                              colors=colors_train, savefig=True, show=False,
+                              fname=os.path.join(plot_dir, 'rec_observations_train_%06i.png' % (it + 1)))
+        plt.close()
+
+        S_rec = inv_map.apply(params_eval, None, X_test)
+        S_rec_uni = jnp.column_stack([jax.scipy.stats.norm.cdf(S_rec[:, 0]),
+                                      jax.scipy.stats.norm.cdf(S_rec[:, 1])])
+        S_rec_uni -= 0.5
+        scatterplot_variables(S_rec_uni, 'Reconstructed observations (test)',
+                              colors=colors_train, savefig=True, show=False,
+                              fname=os.path.join(plot_dir, 'rec_observations_test_%06i.png' % (it + 1)))
+        plt.close()
+
+        prob = jnp.exp(logp.apply(params_eval, None, zz))
+        plt.pcolormesh(np.array(xx), np.array(yy), np.array(prob.reshape(npoints, npoints)))
+        plt.savefig(os.path.join(plot_dir, 'pdf_%06i.png' % (it + 1)))
+        plt.close()
+
 
     if (it + 1) % ckpt_iter == 0:
         params_save = get_params(opt_state)
