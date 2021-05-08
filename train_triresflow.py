@@ -94,10 +94,12 @@ mixing_batched = jax.vmap(mixing)
 
 X_train = mixing_batched(S_train)
 X_test = mixing_batched(S_test)
-X_train -= jnp.mean(X_train, axis=0)
-X_train /= jnp.std(X_train, axis=0)
-X_test -= jnp.mean(X_train, axis=0)
-X_test /= jnp.std(X_train, axis=0)
+m = jnp.mean(X_train, axis=0)
+s = jnp.std(X_train, axis=0)
+X_train -= m
+X_train /= s
+X_test -= m
+X_test /= s
 
 scatterplot_variables(X_train, 'Observations (train)', colors=colors_train, savefig=True,
                       fname=os.path.join(plot_dir, 'data_observations_train.png'), show=False)
