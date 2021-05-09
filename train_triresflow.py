@@ -200,6 +200,10 @@ for it in range(num_iter):
     loss_hist = np.concatenate([loss_hist, loss_append])
 
     if (it + 1) % log_iter == 0:
+        # Save loss
+        np.savetxt(os.path.join(log_dir, 'loss.csv'), loss_hist,
+                   delimiter=',', header='it,loss', comments='')
+
         # Get params
         params_eval = get_params(opt_state)
         params_eval = make_weights_triangular(params_eval, masks)
