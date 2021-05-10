@@ -191,9 +191,15 @@ def build_moebius_transform(alpha, A, a, b, epsilon=2):
             frac = 1.0
         return b + frac * alpha * A @ (x - a)
     
-    def unmixing_moebius_transform(x):
-        # TO DO: implement inverse of the above transformation
-        return 
+    B = np.linalg.inv(A)
+    
+    def unmixing_moebius_transform(y):
+        numer = 1/alpha * (y - b)
+        if epsilon==2:
+            denom = np.sum((numer)**2)
+        else:
+            denom = 1.0
+        return a + 1.0/denom * B @ numer
     
     return mixing_moebius_transform, unmixing_moebius_transform
 
