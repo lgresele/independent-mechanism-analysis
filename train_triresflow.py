@@ -129,7 +129,8 @@ def inv_map_fn(x):
 
 # Init model
 logp = hk.transform(log_prob)
-params = logp.init(key, jnp.array(np.random.randn(5, 2)))
+key, subkey = jax.random.split(key)
+params = logp.init(subkey, jnp.array(np.random.randn(5, 2)))
 inv_map = hk.transform(inv_map_fn)
 
 # Make triangular
@@ -137,7 +138,8 @@ masks = masks_triangular_weights([h // 2 for h in hidden_units])
 params = make_weights_triangular(params, masks)
 
 # Apply spectral normalization
-uv = spectral_norm_init(params, key)
+key, subkey = jax.random.split(key)
+uv = spectral_norm_init(params, subkey)
 params, uv = spectral_normalization(params, uv)
 
 
@@ -200,6 +202,10 @@ for it in range(num_iter):
     loss_hist = np.concatenate([loss_hist, loss_append])
 
     if (it + 1) % log_iter == 0:
+        # Save loss
+        np.savetxt(os.path.join(log_dir, 'loss.csv'), loss_hist,
+                   delimiter=',', header='it,loss', comments='')
+
         # Get params
         params_eval = get_params(opt_state)
         params_eval = make_weights_triangular(params_eval, masks)
