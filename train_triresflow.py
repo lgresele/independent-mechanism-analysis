@@ -4,8 +4,10 @@ from jax import numpy as jnp
 import numpy as np
 import distrax
 import haiku as hk
-from residual import TriangularResidual, spectral_norm_init, spectral_normalization, masks_triangular_weights, make_weights_triangular, LipSwish
+from residual import TriangularResidual, spectral_norm_init, spectral_normalization, masks_triangular_weights, make_weights_triangular
 from utils import get_config
+from metrics import observed_data_likelihood
+from mixing_functions import build_moebius_transform
 
 from jax.experimental.optimizers import adam
 
@@ -89,17 +91,29 @@ b = jnp.zeros(D) # a vector in \RR^D
 # Save data
 jnp.save(os.path.join(data_dir, 'moebius_transform_params.npy'), {'A': A, 'a': a})
 
-mixing, _ = build_moebius_transform(alpha, A, a, b, epsilon=2)
+mixing, unmixing = build_moebius_transform(alpha, A, a, b, epsilon=2)
 mixing_batched = jax.vmap(mixing)
 
 X_train = mixing_batched(S_train)
 X_test = mixing_batched(S_test)
-m = jnp.mean(X_train, axis=0)
-s = jnp.std(X_train, axis=0)
-X_train -= m
-X_train /= s
-X_test -= m
-X_test /= s
+
+# Compute true log probability
+true_log_p_fn = jax.vmap(lambda arg: observed_data_likelihood(arg, unmixing))
+true_log_p_train = true_log_p_fn(X_train)
+true_log_p_test = true_log_p_fn(X_test)
+
+mean_train = jnp.mean(X_train, axis=0)
+std_train = jnp.std(X_train, axis=0)
+X_train -= mean_train
+X_train /= std_train
+X_test -= mean_train
+X_test /= std_train
+
+# Correct for scaling
+true_log_p_train += jnp.log(jnp.abs(jnp.prod(std_train)))
+true_log_p_test += jnp.log(jnp.abs(jnp.prod(std_train)))
+true_log_p_train_avg = jnp.mean(true_log_p_train)
+true_log_p_test_avg = jnp.mean(true_log_p_test)
 
 scatterplot_variables(X_train, 'Observations (train)', colors=colors_train, savefig=True,
                       fname=os.path.join(plot_dir, 'data_observations_train.png'), show=False)
@@ -173,6 +187,8 @@ log_p_train_hist = np.zeros((0, 2))
 log_p_test_hist = np.zeros((0, 2))
 cima_train_hist = np.zeros((0, 2))
 cima_test_hist = np.zeros((0, 2))
+kld_train_hist = np.zeros((0, 2))
+kld_test_hist = np.zeros((0, 2))
 
 npoints = 300
 x, y = jnp.linspace(-3., 3., npoints), jnp.linspace(-3., 3., npoints)
@@ -218,11 +234,23 @@ for it in range(num_iter):
         np.savetxt(os.path.join(log_dir, 'log_p_train.csv'), log_p_train_hist,
                    delimiter=',', header='it,log_p', comments='')
 
+        kld = true_log_p_train_avg - log_p
+        kld_append = np.array([[it + 1, kld.item()]])
+        kld_train_hist = np.concatenate([kld_train_hist, kld_append])
+        np.savetxt(os.path.join(log_dir, 'kld_train.csv'), kld_train_hist,
+                   delimiter=',', header='it,kld', comments='')
+
         log_p = -loss(params_eval, X_test)
         log_p_append = np.array([[it + 1, log_p.item()]])
         log_p_test_hist = np.concatenate([log_p_test_hist, log_p_append])
         np.savetxt(os.path.join(log_dir, 'log_p_test.csv'), log_p_test_hist,
                    delimiter=',', header='it,log_p', comments='')
+
+        kld = true_log_p_test_avg - log_p
+        kld_append = np.array([[it + 1, kld.item()]])
+        kld_test_hist = np.concatenate([kld_test_hist, kld_append])
+        np.savetxt(os.path.join(log_dir, 'kld_test.csv'), kld_test_hist,
+                   delimiter=',', header='it,kld', comments='')
 
         c = cima(params_eval, X_train)
         cima_append = np.array([[it + 1, c.item()]])
