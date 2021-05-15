@@ -122,6 +122,10 @@ scatterplot_variables(X_test, 'Observations (test)', colors=colors_test, savefig
                       fname=os.path.join(plot_dir, 'data_observations_test.png'), show=False)
 plt.close()
 
+# Save data
+jnp.save(os.path.join(data_dir, 'observation_train.npy'), X_train)
+jnp.save(os.path.join(data_dir, 'observation_test.npy'), X_test)
+
 
 # Setup model
 n_layers = config['model']['flow_layers']
