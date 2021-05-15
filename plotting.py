@@ -15,6 +15,14 @@ def cart2pol(x, y):
     phi = np.arctan2(y, x)
     return(rho, phi)
 
+def pol2cart(rho, phi):
+    '''
+    From polar to cartesian coordinates
+    '''
+    x = rho * np.cos(phi)
+    y = rho * np.sin(phi)
+    return(x, y)
+
 def scatterplot_variables(X, title, colors='None', cmap='hsv', savefig=False,
                           fname="scatterplot", show=True):
     '''
