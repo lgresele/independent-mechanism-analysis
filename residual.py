@@ -271,7 +271,7 @@ class Scaling(distrax.Bijector):
     def forward_and_log_det(self, x):
         log_scale = hk.get_parameter(self.name_log_scale, shape=[self.ndims],
                                      dtype=x.dtype, init=jnp.ones)
-        return x * jnp.exp(log_scale), log_scale
+        return x * jnp.exp(log_scale), jnp.sum(log_scale)
 
     def forward(self, x):
         log_scale = hk.get_parameter(self.name + '_log_scale', shape=[self.ndims],
@@ -281,7 +281,7 @@ class Scaling(distrax.Bijector):
     def inverse_and_log_det(self, y):
         log_scale = hk.get_parameter(self.name + '_log_scale', shape=[self.ndims],
                                      dtype=y.dtype, init=jnp.ones)
-        return y * jnp.exp(-log_scale), -log_scale
+        return y * jnp.exp(-log_scale), -jnp.sum(log_scale)
 
     def inverse(self, y):
         log_scale = hk.get_parameter(self.name + '_log_scale', shape=[self.ndims],
