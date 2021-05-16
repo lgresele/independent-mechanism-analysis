@@ -69,12 +69,13 @@ class TriangularResidual(distrax.Bijector):
     def _logdetgrad(self, x):
         if self.brute_force_log_det:
             jac = self.net_jac(x)
-            if x.shape[-1] == 2:
+            ndims = x.shape[-1]
+            if ndims == 2:
                 det = (jac[:, 0, 0] + 1) * (jac[:, 1, 1] + 1) \
                       - jac[:, 0, 1] * jac[:, 1, 0]
                 log_det = jnp.log(jnp.abs(det))
             else:
-                log_det = jnp.linalg.slogdet(jac)[1]
+                log_det = jnp.linalg.slogdet(jac + jnp.eye(ndims, ndims))[1]
         else:
             log_det = 0
         return log_det
