@@ -108,8 +108,6 @@ X_train -= mean_train
 X_test -= mean_train
 
 # Correct for scaling
-true_log_p_train += jnp.log(jnp.abs(jnp.prod(std_train)))
-true_log_p_test += jnp.log(jnp.abs(jnp.prod(std_train)))
 true_log_p_train_avg = jnp.mean(true_log_p_train)
 true_log_p_test_avg = jnp.mean(true_log_p_test)
 
