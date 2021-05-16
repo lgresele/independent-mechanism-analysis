@@ -60,13 +60,13 @@ S_test = S[N:, :]
 jnp.save(os.path.join(data_dir, 'sources_train.npy'), S_train)
 jnp.save(os.path.join(data_dir, 'sources_test.npy'), S_test)
 
-from plotting import cart2pol, scatterplot_variables
-
-_, colors_train = cart2pol(S_train[:, 0], S_train[:, 1])
-_, colors_test = cart2pol(S_test[:, 0], S_test[:, 1])
-
 # Plot the sources
 if D == 2:
+    from plotting import cart2pol, scatterplot_variables
+
+    _, colors_train = cart2pol(S_train[:, 0], S_train[:, 1])
+    _, colors_test = cart2pol(S_test[:, 0], S_test[:, 1])
+
     scatterplot_variables(S_train, 'Sources (train)', colors=colors_train, savefig=True,
                           fname=os.path.join(plot_dir, 'data_sources_train.png'), show=False)
     plt.close()
