@@ -225,6 +225,8 @@ def step(it_, opt_state_, uv_, x_):
 for it in range(num_iter):
     x = X_train[np.random.choice(N, batch_size)]
     loss_val, opt_state, uv = step(it, opt_state, uv, x)
+    
+    print(loss_val)
 
     loss_append = np.array([[it + 1, loss_val.item()]])
     loss_hist = np.concatenate([loss_hist, loss_append])
