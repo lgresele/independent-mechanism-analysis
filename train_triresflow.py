@@ -98,7 +98,7 @@ X_train = mixing_batched(S_train)
 X_test = mixing_batched(S_test)
 
 # Compute true log probability
-true_log_p_fn = jax.vmap(lambda arg: observed_data_likelihood(arg, unmixing))
+true_log_p_fn = jax.vmap(lambda arg: observed_data_likelihood(arg, jax.jacfwd(unmixing)))
 true_log_p_train = true_log_p_fn(X_train)
 true_log_p_test = true_log_p_fn(X_test)
 
