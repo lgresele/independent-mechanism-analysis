@@ -157,7 +157,9 @@ params = hk.data_structures.to_immutable_dict(params_)
 
 # Make triangular
 hu_masks = [hidden_units[0] // D for _ in range(D)]
-hu_masks[-1] = hu_masks[-1] + hidden_units[0] - np.sum(hu_masks)
+remainder = hidden_units[0] - np.sum(hu_masks)
+for ind in range(remainder):
+    hu_masks[-(ind + 1)] = hu_masks[-(ind + 1)] + 1
 masks = masks_triangular_weights(hu_masks)
 params = make_weights_triangular(params, masks)
 
