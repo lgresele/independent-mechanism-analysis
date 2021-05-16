@@ -291,3 +291,23 @@ class Scaling(distrax.Bijector):
         log_scale = hk.get_parameter(self.name + '_log_scale', shape=[self.ndims],
                                      dtype=y.dtype, init=jnp.zeros)
         return y * jnp.exp(-log_scale)
+
+
+class ConstantScaling(distrax.Bijector):
+
+    def __init__(self, scale):
+        super().__init__(1)
+        self.scale = scale
+        self.logdet = jnp.sum(jnp.log(scale))
+
+    def forward_and_log_det(self, x):
+        return x * self.scale, self.logdet
+
+    def forward(self, x):
+        return x * self.scale
+
+    def inverse_and_log_det(self, y):
+        return y / self.scale, -self.logdet
+
+    def inverse(self, y):
+        return y / self.scale
