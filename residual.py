@@ -266,10 +266,10 @@ class Scaling(distrax.Bijector):
     def __init__(self, ndims, name='scaling'):
         super().__init__(1)
         self.ndims = ndims
-        self.name = name
+        self.name_log_scale = name + '_log_scale'
 
     def forward_and_log_det(self, x):
-        log_scale = hk.get_parameter(self.name + '_log_scale', shape=[self.ndim],
+        log_scale = hk.get_parameter(self.name_log_scale, shape=[self.ndim],
                                      dtype=x.dtype, init=jnp.ones)
         return x * jnp.exp(log_scale), log_scale
 
