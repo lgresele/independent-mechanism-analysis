@@ -135,13 +135,13 @@ def log_prob(x):
     base_dist = distrax.Independent(distrax.Normal(loc=jnp.zeros(D), scale=jnp.ones(D)),
                                     reinterpreted_batch_ndims=1)
     flows = distrax.Chain([TriangularResidual(hidden_units + [D], name='residual_' + str(i))
-                           for i in range(n_layers)] + [ConstantScaling(mean_train)])
+                           for i in range(n_layers)] + [ConstantScaling(std_train)])
     model = distrax.Transformed(base_dist, flows)
     return model.log_prob(x)
 
 def inv_map_fn(x):
     flows = distrax.Chain([TriangularResidual(hidden_units + [D], name='residual_' + str(i))
-                           for i in range(n_layers)] + [ConstantScaling(mean_train)])
+                           for i in range(n_layers)] + [ConstantScaling(std_train)])
     return flows.inverse(x)
 
 # Init model
