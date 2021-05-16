@@ -151,8 +151,7 @@ params = logp.init(subkey, jnp.array(np.random.randn(5, D)))
 inv_map = hk.transform(inv_map_fn)
 
 print(std_train)
-print(logp.apply(params, None, X_train[:2, :]))
-print(params)
+print(logp.apply(params, None, X_train[:5, :]))
 
 # Make triangular
 hu_masks = [hidden_units[0] // D for _ in range(D)]
