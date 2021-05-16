@@ -134,15 +134,15 @@ hidden_units = config['model']['nn_layers'] * [config['model']['nn_hidden_units'
 
 # Define model functions
 def log_prob(x):
-    base_dist = distrax.Independent(distrax.Normal(loc=jnp.zeros(2), scale=jnp.ones(2)),
+    base_dist = distrax.Independent(distrax.Normal(loc=jnp.zeros(D), scale=jnp.ones(D)),
                                     reinterpreted_batch_ndims=1)
-    flows = distrax.Chain([TriangularResidual(hidden_units + [2], name='residual_' + str(i))
+    flows = distrax.Chain([TriangularResidual(hidden_units + [D], name='residual_' + str(i))
                            for i in range(n_layers)] + [Scaling(D)])
     model = distrax.Transformed(base_dist, flows)
     return model.log_prob(x)
 
 def inv_map_fn(x):
-    flows = distrax.Chain([TriangularResidual(hidden_units + [2], name='residual_' + str(i))
+    flows = distrax.Chain([TriangularResidual(hidden_units + [D], name='residual_' + str(i))
                            for i in range(n_layers)] + [Scaling(D)])
     return flows.inverse(x)
 
