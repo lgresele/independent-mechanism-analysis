@@ -259,3 +259,31 @@ def spectral_normalization(params, uv, coef=0.97, max_iter=100, atol=1e-3,
         else:
             params_new[key] = item
     return hk.data_structures.to_immutable_dict(params_new), uv
+
+
+class Scaling(distrax.Bijector):
+
+    def __init__(self, ndims, name='scaling'):
+        super().__init__(1)
+        self.ndims = ndims
+        self.name = name
+
+    def forward_and_log_det(self, x):
+        log_scale = hk.get_parameter(self.name + '_log_scale', shape=[self.ndim],
+                                     dtype=x.dtype, init=jnp.ones)
+        return x * jnp.exp(log_scale), log_scale
+
+    def forward(self, x):
+        log_scale = hk.get_parameter(self.name + '_log_scale', shape=[self.ndim],
+                                     dtype=x.dtype, init=jnp.ones)
+        return x * jnp.exp(log_scale)
+
+    def inverse_and_log_det(self, y):
+        log_scale = hk.get_parameter(self.name + '_log_scale', shape=[self.ndim],
+                                     dtype=y.dtype, init=jnp.ones)
+        return y * jnp.exp(-log_scale), -log_scale
+
+    def inverse(self, y):
+        log_scale = hk.get_parameter(self.name + '_log_scale', shape=[self.ndim],
+                                     dtype=y.dtype, init=jnp.ones)
+        return y * jnp.exp(-log_scale)
