@@ -4,7 +4,7 @@ from jax import numpy as jnp
 import numpy as np
 import distrax
 import haiku as hk
-from residual import TriangularResidual, spectral_norm_init, spectral_normalization, masks_triangular_weights, make_weights_triangular
+from residual import TriangularResidual, Scaling, spectral_norm_init, spectral_normalization, masks_triangular_weights, make_weights_triangular
 from utils import get_config
 from metrics import observed_data_likelihood
 from mixing_functions import build_moebius_transform
@@ -66,14 +66,14 @@ _, colors_train = cart2pol(S_train[:, 0], S_train[:, 1])
 _, colors_test = cart2pol(S_test[:, 0], S_test[:, 1])
 
 # Plot the sources
-scatterplot_variables(S_train, 'Sources (train)', colors=colors_train, savefig=True,
-                      fname=os.path.join(plot_dir, 'data_sources_train.png'), show=False)
-plt.close()
-scatterplot_variables(S_test, 'Sources (test)', colors=colors_test, savefig=True,
-                      fname=os.path.join(plot_dir, 'data_sources_test.png'), show=False)
-plt.close()
+if D == 2:
+    scatterplot_variables(S_train, 'Sources (train)', colors=colors_train, savefig=True,
+                          fname=os.path.join(plot_dir, 'data_sources_train.png'), show=False)
+    plt.close()
+    scatterplot_variables(S_test, 'Sources (test)', colors=colors_test, savefig=True,
+                          fname=os.path.join(plot_dir, 'data_sources_test.png'), show=False)
+    plt.close()
 
-from mixing_functions import build_moebius_transform
 # Generate a random orthogonal matrix
 from scipy.stats import ortho_group # Requires version 0.18 of scipy
 A = ortho_group.rvs(dim=D)
@@ -105,9 +105,7 @@ true_log_p_test = true_log_p_fn(X_test)
 mean_train = jnp.mean(X_train, axis=0)
 std_train = jnp.std(X_train, axis=0)
 X_train -= mean_train
-X_train /= std_train
 X_test -= mean_train
-X_test /= std_train
 
 # Correct for scaling
 true_log_p_train += jnp.log(jnp.abs(jnp.prod(std_train)))
@@ -115,16 +113,19 @@ true_log_p_test += jnp.log(jnp.abs(jnp.prod(std_train)))
 true_log_p_train_avg = jnp.mean(true_log_p_train)
 true_log_p_test_avg = jnp.mean(true_log_p_test)
 
-scatterplot_variables(X_train, 'Observations (train)', colors=colors_train, savefig=True,
-                      fname=os.path.join(plot_dir, 'data_observations_train.png'), show=False)
-plt.close()
-scatterplot_variables(X_test, 'Observations (test)', colors=colors_test, savefig=True,
-                      fname=os.path.join(plot_dir, 'data_observations_test.png'), show=False)
-plt.close()
+if D == 2:
+    scatterplot_variables(X_train, 'Observations (train)', colors=colors_train, savefig=True,
+                          fname=os.path.join(plot_dir, 'data_observations_train.png'), show=False)
+    plt.close()
+    scatterplot_variables(X_test, 'Observations (test)', colors=colors_test, savefig=True,
+                          fname=os.path.join(plot_dir, 'data_observations_test.png'), show=False)
+    plt.close()
 
 # Save data
 jnp.save(os.path.join(data_dir, 'observation_train.npy'), X_train)
 jnp.save(os.path.join(data_dir, 'observation_test.npy'), X_test)
+jnp.save(os.path.join(data_dir, 'observation_mean_std.npy'),
+         {'mean': mean_train, 'std': std_train})
 
 
 # Setup model
@@ -136,13 +137,13 @@ def log_prob(x):
     base_dist = distrax.Independent(distrax.Normal(loc=jnp.zeros(2), scale=jnp.ones(2)),
                                     reinterpreted_batch_ndims=1)
     flows = distrax.Chain([TriangularResidual(hidden_units + [2], name='residual_' + str(i))
-                           for i in range(n_layers)])
+                           for i in range(n_layers)] + [Scaling(D)])
     model = distrax.Transformed(base_dist, flows)
     return model.log_prob(x)
 
 def inv_map_fn(x):
     flows = distrax.Chain([TriangularResidual(hidden_units + [2], name='residual_' + str(i))
-                           for i in range(n_layers)])
+                           for i in range(n_layers)] + [Scaling(D)])
     return flows.inverse(x)
 
 # Init model
@@ -150,6 +151,11 @@ logp = hk.transform(log_prob)
 key, subkey = jax.random.split(key)
 params = logp.init(subkey, jnp.array(np.random.randn(5, 2)))
 inv_map = hk.transform(inv_map_fn)
+
+# Initialize scale
+params_ = hk.data_structures.to_mutable_dict(params)
+params_['~']['Scaling_log_scale'] = jnp.log(std_train)
+params = hk.data_structures.to_immutable_dict(params_)
 
 # Make triangular
 masks = masks_triangular_weights([h // 2 for h in hidden_units])
@@ -194,10 +200,13 @@ cima_test_hist = np.zeros((0, 2))
 kld_train_hist = np.zeros((0, 2))
 kld_test_hist = np.zeros((0, 2))
 
-npoints = 300
-x, y = jnp.linspace(-3., 3., npoints), jnp.linspace(-3., 3., npoints)
-xx, yy = jnp.meshgrid(x, y)
-zz = jnp.column_stack([xx.reshape(-1), yy.reshape(-1)])
+if D == 2:
+    npoints = 300
+    plot_max = X_train.max(axis=0)
+    plot_min = X_train.min(axis=0)
+    x, y = jnp.linspace(plot_min[0], plot_max[0], npoints), jnp.linspace(plot_min[1], plot_max[1], npoints)
+    xx, yy = jnp.meshgrid(x, y)
+    zz = jnp.column_stack([xx.reshape(-1), yy.reshape(-1)])
 
 # Iteration
 @jax.jit
@@ -269,29 +278,30 @@ for it in range(num_iter):
                    delimiter=',', header='it,cima', comments='')
 
         # Plots
-        S_rec = inv_map.apply(params_eval, None, X_train)
-        S_rec_uni = jnp.column_stack([jax.scipy.stats.norm.cdf(S_rec[:, 0]),
-                                      jax.scipy.stats.norm.cdf(S_rec[:, 1])])
-        S_rec_uni -= 0.5
-        scatterplot_variables(S_rec_uni, 'Reconstructed sources (train)',
-                              colors=colors_train, savefig=True, show=False,
-                              fname=os.path.join(plot_dir, 'rec_sources_train_%06i.png' % (it + 1)))
-        plt.close()
+        if D == 2:
+            S_rec = inv_map.apply(params_eval, None, X_train)
+            S_rec_uni = jnp.column_stack([jax.scipy.stats.norm.cdf(S_rec[:, 0]),
+                                          jax.scipy.stats.norm.cdf(S_rec[:, 1])])
+            S_rec_uni -= 0.5
+            scatterplot_variables(S_rec_uni, 'Reconstructed sources (train)',
+                                  colors=colors_train, savefig=True, show=False,
+                                  fname=os.path.join(plot_dir, 'rec_sources_train_%06i.png' % (it + 1)))
+            plt.close()
 
-        S_rec = inv_map.apply(params_eval, None, X_test)
-        S_rec_uni = jnp.column_stack([jax.scipy.stats.norm.cdf(S_rec[:, 0]),
-                                      jax.scipy.stats.norm.cdf(S_rec[:, 1])])
-        S_rec_uni -= 0.5
-        scatterplot_variables(S_rec_uni, 'Reconstructed sources (test)',
-                              colors=colors_test, savefig=True, show=False,
-                              fname=os.path.join(plot_dir, 'rec_sources_test_%06i.png' % (it + 1)))
-        plt.close()
+            S_rec = inv_map.apply(params_eval, None, X_test)
+            S_rec_uni = jnp.column_stack([jax.scipy.stats.norm.cdf(S_rec[:, 0]),
+                                          jax.scipy.stats.norm.cdf(S_rec[:, 1])])
+            S_rec_uni -= 0.5
+            scatterplot_variables(S_rec_uni, 'Reconstructed sources (test)',
+                                  colors=colors_test, savefig=True, show=False,
+                                  fname=os.path.join(plot_dir, 'rec_sources_test_%06i.png' % (it + 1)))
+            plt.close()
 
-        prob = jnp.exp(logp.apply(params_eval, None, zz))
-        plt.pcolormesh(np.array(xx), np.array(yy), np.array(prob.reshape(npoints, npoints)))
-        plt.gca().set_aspect('equal', adjustable='box')
-        plt.savefig(os.path.join(plot_dir, 'pdf_%06i.png' % (it + 1)))
-        plt.close()
+            prob = jnp.exp(logp.apply(params_eval, None, zz))
+            plt.pcolormesh(np.array(xx), np.array(yy), np.array(prob.reshape(npoints, npoints)))
+            plt.gca().set_aspect('equal', adjustable='box')
+            plt.savefig(os.path.join(plot_dir, 'pdf_%06i.png' % (it + 1)))
+            plt.close()
 
 
     if (it + 1) % ckpt_iter == 0:
