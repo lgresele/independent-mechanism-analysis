@@ -150,6 +150,10 @@ key, subkey = jax.random.split(key)
 params = logp.init(subkey, jnp.array(np.random.randn(5, D)))
 inv_map = hk.transform(inv_map_fn)
 
+print(std_train)
+print(logp.apply(params, None, X_train[:2, :]))
+print(params)
+
 # Make triangular
 hu_masks = [hidden_units[0] // D for _ in range(D)]
 remainder = hidden_units[0] - np.sum(hu_masks)
