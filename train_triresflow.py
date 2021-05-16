@@ -265,13 +265,13 @@ for it in range(num_iter):
                    delimiter=',', header='it,kld', comments='')
 
         jac_fn_eval = jax.vmap(jax.jacfwd(lambda y: inv_map.apply(params_eval, None, y)))
-        c = cima(X_train, jac_fn_eval)
+        c = jnp.mean(cima(X_train, jac_fn_eval))
         cima_append = np.array([[it + 1, c.item()]])
         cima_train_hist = np.concatenate([cima_train_hist, cima_append])
         np.savetxt(os.path.join(log_dir, 'cima_train.csv'), cima_train_hist,
                    delimiter=',', header='it,cima', comments='')
 
-        c = cima(X_test, jac_fn_eval)
+        c = jnp.mean(cima(X_test, jac_fn_eval))
         cima_append = np.array([[it + 1, c.item()]])
         cima_test_hist = np.concatenate([cima_test_hist, cima_append])
         np.savetxt(os.path.join(log_dir, 'cima_test.csv'), cima_test_hist,
