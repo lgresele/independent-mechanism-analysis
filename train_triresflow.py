@@ -149,7 +149,7 @@ def inv_map_fn(x):
 # Init model
 logp = hk.transform(log_prob)
 key, subkey = jax.random.split(key)
-params = logp.init(subkey, jnp.array(np.random.randn(5, 2)))
+params = logp.init(subkey, jnp.array(np.random.randn(5, D)))
 inv_map = hk.transform(inv_map_fn)
 
 # Initialize scale
@@ -158,7 +158,9 @@ params_['~']['Scaling_log_scale'] = jnp.log(std_train)
 params = hk.data_structures.to_immutable_dict(params_)
 
 # Make triangular
-masks = masks_triangular_weights([h // 2 for h in hidden_units])
+hu_masks = [hidden_units[0] // D for _ in range(D)]
+hu_masks[-1] = hu_masks[-1] + hidden_units[0] - np.sum(hu_masks)
+masks = masks_triangular_weights(hu_masks)
 params = make_weights_triangular(params, masks)
 
 # Apply spectral normalization
