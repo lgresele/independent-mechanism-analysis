@@ -174,12 +174,11 @@ def loss(params, x):
     ll = logp.apply(params, None, x)
     return -jnp.mean(ll)
 
-def cima(params, x):
-    jac_fn = jax.vmap(jax.jacfwd(lambda y: inv_map.apply(params, None, y)))
-    J = jac_fn(x)
-    detJ = J[:, 0, 0] * J[:, 1, 1] - J[:, 0, 1] * J[:, 1, 0]
-    c_ima = jnp.sum(jnp.log(jnp.linalg.norm(J, axis=2)), axis=1) - jnp.log(jnp.abs(detJ))
-    return jnp.mean(c_ima)
+# cima functions
+if D == 2:
+    from metrics import cima
+else:
+    from metrics import cima_higher_d as cima
 
 # Optimizer
 num_iter = config['training']['num_iter']
@@ -265,13 +264,14 @@ for it in range(num_iter):
         np.savetxt(os.path.join(log_dir, 'kld_test.csv'), kld_test_hist,
                    delimiter=',', header='it,kld', comments='')
 
-        c = cima(params_eval, X_train)
+        jac_fn_eval = jax.vmap(jax.jacfwd(lambda y: inv_map.apply(params_eval, None, y)))
+        c = cima(X_train, jac_fn_eval)
         cima_append = np.array([[it + 1, c.item()]])
         cima_train_hist = np.concatenate([cima_train_hist, cima_append])
         np.savetxt(os.path.join(log_dir, 'cima_train.csv'), cima_train_hist,
                    delimiter=',', header='it,cima', comments='')
 
-        c = cima(params_eval, X_test)
+        c = cima(X_test, jac_fn_eval)
         cima_append = np.array([[it + 1, c.item()]])
         cima_test_hist = np.concatenate([cima_test_hist, cima_append])
         np.savetxt(os.path.join(log_dir, 'cima_test.csv'), cima_test_hist,
