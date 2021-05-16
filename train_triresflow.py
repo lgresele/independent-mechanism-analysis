@@ -224,6 +224,7 @@ def step(it_, opt_state_, uv_, x_):
 # Training
 for it in range(num_iter):
     x = X_train[np.random.choice(N, batch_size)]
+    print(jnp.mean(logp.apply(params, None, x)))
     loss_val, opt_state, uv = step(it, opt_state, uv, x)
 
     loss_append = np.array([[it + 1, loss_val.item()]])
