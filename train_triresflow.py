@@ -60,13 +60,13 @@ S_test = S[N:, :]
 jnp.save(os.path.join(data_dir, 'sources_train.npy'), S_train)
 jnp.save(os.path.join(data_dir, 'sources_test.npy'), S_test)
 
-from plotting import cart2pol, scatterplot_variables
-
-_, colors_train = cart2pol(S_train[:, 0], S_train[:, 1])
-_, colors_test = cart2pol(S_test[:, 0], S_test[:, 1])
-
 # Plot the sources
 if D == 2:
+    from plotting import cart2pol, scatterplot_variables
+
+    _, colors_train = cart2pol(S_train[:, 0], S_train[:, 1])
+    _, colors_test = cart2pol(S_test[:, 0], S_test[:, 1])
+
     scatterplot_variables(S_train, 'Sources (train)', colors=colors_train, savefig=True,
                           fname=os.path.join(plot_dir, 'data_sources_train.png'), show=False)
     plt.close()
@@ -98,7 +98,7 @@ X_train = mixing_batched(S_train)
 X_test = mixing_batched(S_test)
 
 # Compute true log probability
-true_log_p_fn = jax.vmap(lambda arg: observed_data_likelihood(arg, unmixing))
+true_log_p_fn = jax.vmap(lambda arg: observed_data_likelihood(arg, jax.jacfwd(unmixing)))
 true_log_p_train = true_log_p_fn(X_train)
 true_log_p_test = true_log_p_fn(X_test)
 
@@ -134,15 +134,15 @@ hidden_units = config['model']['nn_layers'] * [config['model']['nn_hidden_units'
 
 # Define model functions
 def log_prob(x):
-    base_dist = distrax.Independent(distrax.Normal(loc=jnp.zeros(2), scale=jnp.ones(2)),
+    base_dist = distrax.Independent(distrax.Normal(loc=jnp.zeros(D), scale=jnp.ones(D)),
                                     reinterpreted_batch_ndims=1)
-    flows = distrax.Chain([TriangularResidual(hidden_units + [2], name='residual_' + str(i))
+    flows = distrax.Chain([TriangularResidual(hidden_units + [D], name='residual_' + str(i))
                            for i in range(n_layers)] + [Scaling(D)])
     model = distrax.Transformed(base_dist, flows)
     return model.log_prob(x)
 
 def inv_map_fn(x):
-    flows = distrax.Chain([TriangularResidual(hidden_units + [2], name='residual_' + str(i))
+    flows = distrax.Chain([TriangularResidual(hidden_units + [D], name='residual_' + str(i))
                            for i in range(n_layers)] + [Scaling(D)])
     return flows.inverse(x)
 
@@ -174,12 +174,11 @@ def loss(params, x):
     ll = logp.apply(params, None, x)
     return -jnp.mean(ll)
 
-def cima(params, x):
-    jac_fn = jax.vmap(jax.jacfwd(lambda y: inv_map.apply(params, None, y)))
-    J = jac_fn(x)
-    detJ = J[:, 0, 0] * J[:, 1, 1] - J[:, 0, 1] * J[:, 1, 0]
-    c_ima = jnp.sum(jnp.log(jnp.linalg.norm(J, axis=2)), axis=1) - jnp.log(jnp.abs(detJ))
-    return jnp.mean(c_ima)
+# cima functions
+if D == 2:
+    from metrics import cima
+else:
+    from metrics import cima_higher_d as cima
 
 # Optimizer
 num_iter = config['training']['num_iter']
@@ -265,13 +264,14 @@ for it in range(num_iter):
         np.savetxt(os.path.join(log_dir, 'kld_test.csv'), kld_test_hist,
                    delimiter=',', header='it,kld', comments='')
 
-        c = cima(params_eval, X_train)
+        jac_fn_eval = jax.vmap(jax.jacfwd(lambda y: inv_map.apply(params_eval, None, y)))
+        c = jnp.mean(cima(X_train, jac_fn_eval))
         cima_append = np.array([[it + 1, c.item()]])
         cima_train_hist = np.concatenate([cima_train_hist, cima_append])
         np.savetxt(os.path.join(log_dir, 'cima_train.csv'), cima_train_hist,
                    delimiter=',', header='it,cima', comments='')
 
-        c = cima(params_eval, X_test)
+        c = jnp.mean(cima(X_test, jac_fn_eval))
         cima_append = np.array([[it + 1, c.item()]])
         cima_test_hist = np.concatenate([cima_test_hist, cima_append])
         np.savetxt(os.path.join(log_dir, 'cima_test.csv'), cima_test_hist,

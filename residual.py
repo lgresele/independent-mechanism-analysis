@@ -69,9 +69,12 @@ class TriangularResidual(distrax.Bijector):
     def _logdetgrad(self, x):
         if self.brute_force_log_det:
             jac = self.net_jac(x)
-            det = (jac[:, 0, 0] + 1) * (jac[:, 1, 1] + 1) \
-                  - jac[:, 0, 1] * jac[:, 1, 0]
-            log_det = jnp.log(jnp.abs(det))
+            if x.shape[-1] == 2:
+                det = (jac[:, 0, 0] + 1) * (jac[:, 1, 1] + 1) \
+                      - jac[:, 0, 1] * jac[:, 1, 0]
+                log_det = jnp.log(jnp.abs(det))
+            else:
+                log_det = jnp.linalg.slogdet(jac)[1]
         else:
             log_det = 0
         return log_det
@@ -270,20 +273,20 @@ class Scaling(distrax.Bijector):
 
     def forward_and_log_det(self, x):
         log_scale = hk.get_parameter(self.name_log_scale, shape=[self.ndims],
-                                     dtype=x.dtype, init=jnp.ones)
+                                     dtype=x.dtype, init=jnp.zeros)
         return x * jnp.exp(log_scale), jnp.sum(log_scale)
 
     def forward(self, x):
         log_scale = hk.get_parameter(self.name + '_log_scale', shape=[self.ndims],
-                                     dtype=x.dtype, init=jnp.ones)
+                                     dtype=x.dtype, init=jnp.zeros)
         return x * jnp.exp(log_scale)
 
     def inverse_and_log_det(self, y):
         log_scale = hk.get_parameter(self.name + '_log_scale', shape=[self.ndims],
-                                     dtype=y.dtype, init=jnp.ones)
+                                     dtype=y.dtype, init=jnp.zeros)
         return y * jnp.exp(-log_scale), -jnp.sum(log_scale)
 
     def inverse(self, y):
         log_scale = hk.get_parameter(self.name + '_log_scale', shape=[self.ndims],
-                                     dtype=y.dtype, init=jnp.ones)
+                                     dtype=y.dtype, init=jnp.zeros)
         return y * jnp.exp(-log_scale)
