@@ -4,7 +4,7 @@ from jax import numpy as jnp
 import numpy as np
 import distrax
 import haiku as hk
-from residual import TriangularResidual, Scaling, spectral_norm_init, spectral_normalization, masks_triangular_weights, make_weights_triangular
+from residual import TriangularResidual, spectral_norm_init, spectral_normalization, masks_triangular_weights, make_weights_triangular
 from utils import get_config
 from metrics import observed_data_likelihood
 from mixing_functions import build_moebius_transform
@@ -135,13 +135,15 @@ def log_prob(x):
     base_dist = distrax.Independent(distrax.Normal(loc=jnp.zeros(D), scale=jnp.ones(D)),
                                     reinterpreted_batch_ndims=1)
     flows = distrax.Chain([TriangularResidual(hidden_units + [D], name='residual_' + str(i))
-                           for i in range(n_layers)] + [Scaling(D)])
+                           for i in range(n_layers)] +
+                          [distrax.ScalarAffine(shift=jnp.zeros(D), scale=mean_train)])
     model = distrax.Transformed(base_dist, flows)
     return model.log_prob(x)
 
 def inv_map_fn(x):
     flows = distrax.Chain([TriangularResidual(hidden_units + [D], name='residual_' + str(i))
-                           for i in range(n_layers)] + [Scaling(D)])
+                           for i in range(n_layers)] +
+                          [distrax.ScalarAffine(shift=jnp.zeros(D), scale=mean_train)])
     return flows.inverse(x)
 
 # Init model
@@ -149,11 +151,6 @@ logp = hk.transform(log_prob)
 key, subkey = jax.random.split(key)
 params = logp.init(subkey, jnp.array(np.random.randn(5, D)))
 inv_map = hk.transform(inv_map_fn)
-
-# Initialize scale
-params_ = hk.data_structures.to_mutable_dict(params)
-params_['~']['Scaling_log_scale'] = jnp.log(std_train)
-params = hk.data_structures.to_immutable_dict(params_)
 
 # Make triangular
 hu_masks = [hidden_units[0] // D for _ in range(D)]
