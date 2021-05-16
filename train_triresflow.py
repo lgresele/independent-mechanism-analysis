@@ -150,9 +150,6 @@ key, subkey = jax.random.split(key)
 params = logp.init(subkey, jnp.array(np.random.randn(5, D)))
 inv_map = hk.transform(inv_map_fn)
 
-print(std_train)
-print(logp.apply(params, None, X_train[:5, :]))
-
 # Make triangular
 hu_masks = [hidden_units[0] // D for _ in range(D)]
 remainder = hidden_units[0] - np.sum(hu_masks)
@@ -225,8 +222,6 @@ def step(it_, opt_state_, uv_, x_):
 for it in range(num_iter):
     x = X_train[np.random.choice(N, batch_size)]
     loss_val, opt_state, uv = step(it, opt_state, uv, x)
-    
-    print(loss_val)
 
     loss_append = np.array([[it + 1, loss_val.item()]])
     loss_hist = np.concatenate([loss_hist, loss_append])
