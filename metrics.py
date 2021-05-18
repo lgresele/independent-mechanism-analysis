@@ -62,6 +62,31 @@ def cima_higher_d(x, jac_fn):
     out = sum_log_norms + logdetJ
     return out
 
+def cima_higher_d_fwd(s, jac_fn):
+    '''
+    Computes the C_IMA (Independent Mechanism Analysis contrast) for observations of any dimensionality
+    Based on **sources and the mixing function**.
+    
+    Parameters
+    ----------
+    s : ndarray, shape (n_samples, n_features)
+        Input collection of datapoints --- **sources**
+    jac_fn : function
+        Jacobian of the **mixing** function, **batched**
+    Returns
+    -------
+    out : ndarray, shape (n_samples, )
+        cima, pointwise (take the mean for the global quantity)
+    '''
+    J = jac_fn(s)
+    logdetJ = jnp.linalg.slogdet(J)[1]
+    
+    # Log norms
+    # axis = 1 -- norm over columns
+    # axis = 2 -- norm over rows    
+    sum_log_norms = jnp.sum(jnp.log(jnp.linalg.norm(J, axis=-2)), axis=-1)
+    out = sum_log_norms - logdetJ
+    return out
 
 # def aDM(Jf, s):
 #     '''
