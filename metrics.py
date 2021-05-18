@@ -62,6 +62,7 @@ def cima_higher_d(x, jac_fn):
     out = sum_log_norms + logdetJ
     return out
 
+
 # def aDM(Jf, s):
 #     '''
 #     anti Darmois Metric
