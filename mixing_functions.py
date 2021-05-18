@@ -2,8 +2,8 @@
 Implementation of various mixing/unmixing functions.
 '''
 
-from jax import numpy as np
 from jax.scipy import special
+from jax import numpy as jnp
 
 '''
 Mixing functions inspired by "Nonlinear independent component analysis: Existence and uniqueness results",
@@ -16,25 +16,25 @@ def f_1(s):
     '''
     "Moderately nonlinear mixing"
     '''
-    f0 = np.tanh(4*s[0] - 2) + s[0] + s[1]/2
-    f1 = np.tanh(4*s[1] - 2) + s[1] + s[0]/2
-    return np.array([f0, f1])
+    f0 = jnp.tanh(4*s[0] - 2) + s[0] + s[1]/2
+    f1 = jnp.tanh(4*s[1] - 2) + s[1] + s[0]/2
+    return jnp.array([f0, f1])
 
 def f_2(s):
     '''
     "Rather nonlinear mixing"
     '''
-    f0 = np.tanh(s[1])/2 + s[0] + s[0]**2/2
-    f1 = s[0]**3 - s[0] + np.tanh(s[1])
-    return np.array([f0, f1])
+    f0 = jnp.tanh(s[1])/2 + s[0] + s[0]**2/2
+    f1 = s[0]**3 - s[0] + jnp.tanh(s[1])
+    return jnp.array([f0, f1])
 
 def f_3(s):
     '''
     "Non-bijective nonlinear mixing"
     '''
     f0 = s[1]**3 + s[0]
-    f1 = np.tanh(s[1]) + s[0]**3
-    return np.array([f0, f1])
+    f1 = jnp.tanh(s[1]) + s[0]**3
+    return jnp.array([f0, f1])
 
 '''
 Post-nonlinear mixing and unmixing
@@ -50,10 +50,10 @@ def post_nonlinear_model(A, nonlinearity='cube'):
         y = y**3
         return y
     
-    A_inv = np.linalg.inv(A) 
+    A_inv = jnp.linalg.inv(A) 
         
     def unmixing(x):
-        y = np.cbrt(x)
+        y = jnp.cbrt(x)
         y = A_inv @ y
         return y
 
@@ -74,7 +74,7 @@ def f_g_unl(A):
         y = A @ y
         return y
     
-    A_inv = np.linalg.inv(A) 
+    A_inv = jnp.linalg.inv(A) 
     
     def f_inv(x):
         y = A_inv @ x
@@ -92,7 +92,7 @@ def f_lin(A):
     def f(x):
         return A @ x
     
-    A_inv = np.linalg.inv(A) 
+    A_inv = jnp.linalg.inv(A) 
     
     def f_inv(x):
         return A_inv @ x
@@ -107,20 +107,20 @@ def darmois_linear_gaussian_2d(A):
     '''
     Returns the Darmois construction (and its inverse) for 2d Gaussian sources
     '''
-    sigma_0 = np.sqrt(A[0,0]**2 + A[0,1]**2) 
-    sigma_1 = np.sqrt(A[1,0]**2 + A[1,1]**2) 
+    sigma_0 = jnp.sqrt(A[0,0]**2 + A[0,1]**2) 
+    sigma_1 = jnp.sqrt(A[1,0]**2 + A[1,1]**2) 
     rho_01 = (A[0,0]*A[1,0] + A[0,1]*A[1,1])/(sigma_0*sigma_1)
     c_1_given_0 = rho_01*sigma_1/sigma_0
     
     def darmois(x):
-        y_0 = 0.5*(1.0 + special.erf(x[0]/(sigma_0*np.sqrt(2.0))))
-        y_1 = 0.5*(1.0 + special.erf( (x[1] - c_1_given_0* x[0]) /np.sqrt( 2 * ( 1.0 - rho_01**2) * sigma_1**2 )))
-        return np.array([y_0, y_1])
+        y_0 = 0.5*(1.0 + special.erf(x[0]/(sigma_0*jnp.sqrt(2.0))))
+        y_1 = 0.5*(1.0 + special.erf( (x[1] - c_1_given_0* x[0]) /jnp.sqrt( 2 * ( 1.0 - rho_01**2) * sigma_1**2 )))
+        return jnp.array([y_0, y_1])
 
     def inv_darmois(y):
-        s_0 = sigma_0*np.sqrt(2)*special.erfinv(2.0*y[0]-1.0)
-        s_1 = np.sqrt( 2 * ( 1.0 - rho_01**2) * sigma_1**2 ) * special.erfinv(2.0*y[1]-1.0) + c_1_given_0 * s_0
-        return np.array([s_0, s_1])    
+        s_0 = sigma_0*jnp.sqrt(2)*special.erfinv(2.0*y[0]-1.0)
+        s_1 = jnp.sqrt( 2 * ( 1.0 - rho_01**2) * sigma_1**2 ) * special.erfinv(2.0*y[1]-1.0) + c_1_given_0 * s_0
+        return jnp.array([s_0, s_1])    
     
     return darmois, inv_darmois
 
@@ -131,9 +131,9 @@ def darmois_linear_gaussian(A):
     
     N.B. This is still rather heuristic!
     '''
-    A_inv = np.linalg.inv(A)
-    _, R = np.linalg.qr(A_inv)
-    R_inv = np.linalg.inv(R)
+    A_inv = jnp.linalg.inv(A)
+    _, R = jnp.linalg.qr(A_inv)
+    R_inv = jnp.linalg.inv(R)
     
     def darmois(x):
         y = R @ x
@@ -156,17 +156,17 @@ def build_conformal_map(nonlinearity):
 #         x-= 0.5
         z = x[0] + x[1]*1j
         y = nonlinearity(z)
-        re = np.real(y)
-        imag = np.imag(y)
-        return np.array([re, imag])
+        re = jnp.real(y)
+        imag = jnp.imag(y)
+        return jnp.array([re, imag])
     
     def conformal_map_gridplot(x_0, x_1):
 #         x_0-= 0.5
 #         x_1-= 0.5
         z = x_0 + x_1*1j
         y = nonlinearity(z)
-        re = np.real(y)
-        imag = np.imag(y)
+        re = jnp.real(y)
+        imag = jnp.imag(y)
         return re, imag
     
     return conformal_map, conformal_map_gridplot
@@ -183,20 +183,20 @@ def build_moebius_transform(alpha, A, a, b, epsilon=2):
     '''
     def mixing_moebius_transform(x):
         if epsilon==2:
-            frac = np.sum((x-a)**2) #is this correct?
+            frac = jnp.sum((x-a)**2) #is this correct?
             frac = frac**(-1)
         else:
-            diff = np.abs(x-a)
+            diff = jnp.abs(x-a)
             
             frac = 1.0
         return b + frac * alpha * A @ (x - a)
     
-    B = np.linalg.inv(A)
+    B = jnp.linalg.inv(A)
     
     def unmixing_moebius_transform(y):
         numer = 1/alpha * (y - b)
         if epsilon==2:
-            denom = np.sum((numer)**2)
+            denom = jnp.sum((numer)**2)
         else:
             denom = 1.0
         return a + 1.0/denom * B @ numer
@@ -224,7 +224,7 @@ def build_automorphism(A):
         z_modified = 0.5*(1.0 + special.erf(z_gauss))
         return z_modified
     
-    A_inv = np.linalg.inv(A) 
+    A_inv = jnp.linalg.inv(A) 
     
     def measure_preserving_inv(z):
         # apply cdf transform
@@ -236,3 +236,36 @@ def build_automorphism(A):
         return z_modified
     
     return measure_preserving, measure_preserving_inv
+
+'''
+Build polar to cartesian transformation and inverse transformation
+Only in two dimensions.
+'''
+
+def build_radial_map(add, rescale):
+    def pol2cart_mixing(S):
+        '''
+        From cartesian to polar coordinates
+        '''
+        S = S @ rescale
+        S += add
+        rho,phi = S[0], S[1]
+        x = rho * jnp.cos(phi)
+        y = rho * jnp.sin(phi)
+        return jnp.asarray([x, y])
+    
+    rescale_inv = jnp.linalg.inv(rescale)
+    
+    def cart2pol_unmixing(X):
+        '''
+        From polar to cartesian coordinates
+        '''
+        x,y = X[0], X[1]
+        rho = jnp.sqrt(x**2 + y**2)
+        phi = jnp.arctan2(y, x)
+        S = jnp.asarray([rho, phi])
+        S -= add
+        S = S @ rescale_inv
+        return S
+    
+    return pol2cart_mixing, cart2pol_unmixing
