@@ -351,7 +351,7 @@ for it in range(num_iter):
         av_corr_pearson, _, _ = SolveHungarian(recov=S_rec_uni_test[::10, :], source=S_train[::10, :],
                                                correlation='Pearson')
         mcc_append = np.array([[it + 1, av_corr_spearman.item(), av_corr_pearson.item()]])
-        mcc_train_hist = np.concatenate([mcc_test_hist, mcc_append])
+        mcc_test_hist = np.concatenate([mcc_test_hist, mcc_append])
         np.savetxt(os.path.join(log_dir, 'mcc_test.csv'), mcc_test_hist,
                    delimiter=',', header='it,spearman,pearson', comments='')
 
