@@ -346,9 +346,9 @@ for it in range(num_iter):
             raise NotImplementedError('The base distribution ' + base_name + ' is not implemented.')
         S_rec_uni_test = S_rec_uni - 0.5
 
-        av_corr_spearman, _, _ = SolveHungarian(recov=S_rec_uni_test[::10, :], source=S_train[::10, :],
+        av_corr_spearman, _, _ = SolveHungarian(recov=S_rec_uni_test[::10, :], source=S_test[::10, :],
                                                 correlation='Spearman')
-        av_corr_pearson, _, _ = SolveHungarian(recov=S_rec_uni_test[::10, :], source=S_train[::10, :],
+        av_corr_pearson, _, _ = SolveHungarian(recov=S_rec_uni_test[::10, :], source=S_test[::10, :],
                                                correlation='Pearson')
         mcc_append = np.array([[it + 1, av_corr_spearman.item(), av_corr_pearson.item()]])
         mcc_test_hist = np.concatenate([mcc_test_hist, mcc_append])
