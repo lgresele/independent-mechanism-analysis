@@ -9,7 +9,7 @@ class TriangularResidual(distrax.Bijector):
     Residual flow layer with triangular Jacobian
     """
 
-    def __init__(self, hidden_units, zeros=True, brute_force_log_det=True,
+    def __init__(self, hidden_units, initializer='None', brute_force_log_det=True,
                  act='lipswish', name='residual'):
         """
         Constructor
@@ -20,7 +20,7 @@ class TriangularResidual(distrax.Bijector):
         :param name: Name of module
         """
         super().__init__(1)
-        self.net = mlp(hidden_units, zeros, act, name)
+        self.net = mlp(hidden_units, initializer, act, name)
         self.brute_force_log_det = brute_force_log_det
         if self.brute_force_log_det:
             self.net_jac = jax.vmap(jax.jacfwd(self.net))
@@ -81,13 +81,13 @@ class TriangularResidual(distrax.Bijector):
         return log_det
 
 
-def mlp(hidden_units, zeros=True, act='lipswish', name=None) -> hk.Sequential:
+def mlp(hidden_units, initializer='None', act='lipswish', name=None) -> hk.Sequential:
     """
     Returns an haiku MLP with relu nonlinearlties and a number
     of hidden units specified by an array
     :param hidden_units: Array containing number of hidden units of each layer
-    :param zeros: Flag, if true weights and biases of last layer are
-    initialized as zero
+    :param initializer: if 'None' weights and biases of last layer are
+    initialized as zero; else, they are initialized with initializer, from hk.initializers
     :param act: Activation function, can be relu, elu or lipswish
     :param name: Name of hidden layer
     :return: MLP as hk.Sequential
@@ -112,11 +112,12 @@ def mlp(hidden_units, zeros=True, act='lipswish', name=None) -> hk.Sequential:
         layer_name = prefix + 'linear_' + str(i)
         layers += [hk.Linear(hidden_units[i], name=layer_name), act_fn]
     layer_name = prefix + 'linear_' + str(i + 1)
-    if zeros:
+    if initializer=='None':
         layers += [hk.Linear(hidden_units[-1], w_init=jnp.zeros, b_init=jnp.zeros,
                              name=layer_name)]
     else:
-        layers += [hk.Linear(hidden_units[-1], name=layer_name)]
+        layers += [hk.Linear(hidden_units[-1], w_init=initializer, b_init=initializer,
+                             name=layer_name)]
     return hk.Sequential(layers)
 
 class LipSwish(hk.Module):
