@@ -6,8 +6,9 @@ import distrax
 import haiku as hk
 from residual import TriangularResidual, ConstantScaling, spectral_norm_init, spectral_normalization, masks_triangular_weights, make_weights_triangular
 from utils import get_config
-from metrics import observed_data_likelihood
+from metrics import observed_data_likelihood, jacobian_amari_distance
 from mixing_functions import build_moebius_transform
+from solve_hungarian import SolveHungarian
 
 from jax.experimental.optimizers import adam
 
@@ -88,24 +89,34 @@ while len(a) < D:
         a = a + [s]
 a = jnp.array(a) # a vector in \RR^D
 b = jnp.zeros(D) # a vector in \RR^D
-# Save data
-jnp.save(os.path.join(data_dir, 'moebius_transform_params.npy'), {'A': A, 'a': a})
+epsilon = config['data']['epsilon']
 
-mixing, unmixing = build_moebius_transform(alpha, A, a, b, epsilon=2)
+mixing, unmixing = build_moebius_transform(alpha, A, a, b, epsilon=epsilon)
 mixing_batched = jax.vmap(mixing)
 
 X_train = mixing_batched(S_train)
 X_test = mixing_batched(S_test)
 
-# Compute true log probability
-true_log_p_fn = jax.vmap(lambda arg: observed_data_likelihood(arg, jax.jacfwd(unmixing)))
-true_log_p_train = true_log_p_fn(X_train)
-true_log_p_test = true_log_p_fn(X_test)
-
 mean_train = jnp.mean(X_train, axis=0)
 std_train = jnp.std(X_train, axis=0)
 X_train -= mean_train
 X_test -= mean_train
+
+b = b - mean_train
+
+mixing, unmixing = build_moebius_transform(alpha, A, a, b, epsilon=epsilon)
+unmixing_batched = jax.vmap(unmixing)
+jac_mixing_batched = jax.vmap(jax.jacfwd(mixing))
+
+
+# Save parameters of Moebius transformation
+jnp.save(os.path.join(data_dir, 'moebius_transform_params.npy'),
+         {'A': A, 'a': a, 'b': b})
+
+# Compute true log probability
+true_log_p_fn = jax.vmap(lambda arg: observed_data_likelihood(arg, jax.jacfwd(unmixing)))
+true_log_p_train = true_log_p_fn(X_train)
+true_log_p_test = true_log_p_fn(X_test)
 
 # Correct for scaling
 true_log_p_train_avg = jnp.mean(true_log_p_train)
@@ -131,9 +142,17 @@ n_layers = config['model']['flow_layers']
 hidden_units = config['model']['nn_layers'] * [config['model']['nn_hidden_units']]
 
 # Define model functions
-def log_prob(x):
+base_name = config['model']['base']
+if base_name == 'gaussian':
     base_dist = distrax.Independent(distrax.Normal(loc=jnp.zeros(D), scale=jnp.ones(D)),
                                     reinterpreted_batch_ndims=1)
+elif base_name == 'logistic':
+    base_dist = distrax.Independent(distrax.Logistic(loc=jnp.zeros(D), scale=jnp.ones(D)),
+                                    reinterpreted_batch_ndims=1)
+else:
+    raise NotImplementedError('The base distribution ' + base_name + ' is not implemented.')
+
+def log_prob(x):
     flows = distrax.Chain([TriangularResidual(hidden_units + [D], name='residual_' + str(i))
                            for i in range(n_layers)] + [ConstantScaling(std_train)])
     model = distrax.Transformed(base_dist, flows)
@@ -167,9 +186,17 @@ params, uv = spectral_normalization(params, uv)
 # Prepare training
 
 # Performance measures
-def loss(params, x):
-    ll = logp.apply(params, None, x)
-    return -jnp.mean(ll)
+lag_mult = config['training']['lag_mult']
+if lag_mult is None:
+    def loss(params, x):
+        ll = logp.apply(params, None, x)
+        return -jnp.mean(ll)
+else:
+    def loss(params, x):
+        jac_fn = jax.vmap(jax.jacfwd(lambda y: inv_map.apply(params, None, y)))
+        c_ima = cima(x, jac_fn)
+        ll = logp.apply(params, None, x)
+        return -jnp.mean(ll) + lag_mult * jnp.mean(c_ima)
 
 # cima functions
 if D == 2:
@@ -195,6 +222,10 @@ cima_train_hist = np.zeros((0, 2))
 cima_test_hist = np.zeros((0, 2))
 kld_train_hist = np.zeros((0, 2))
 kld_test_hist = np.zeros((0, 2))
+amari_train_hist = np.zeros((0, 2))
+amari_test_hist = np.zeros((0, 2))
+mcc_train_hist = np.zeros((0, 3))
+mcc_test_hist = np.zeros((0, 3))
 
 if D == 2:
     npoints = 300
@@ -274,22 +305,64 @@ for it in range(num_iter):
         np.savetxt(os.path.join(log_dir, 'cima_test.csv'), cima_test_hist,
                    delimiter=',', header='it,cima', comments='')
 
+        amari = jacobian_amari_distance(X_train, jac_fn_eval, jac_mixing_batched,
+                                        unmixing_batched)
+        amari_append = np.array([[it + 1, amari.item()]])
+        amari_train_hist = np.concatenate([amari_train_hist, amari_append])
+        np.savetxt(os.path.join(log_dir, 'amari_train.csv'), amari_train_hist,
+                   delimiter=',', header='it,amari', comments='')
+
+        amari = jacobian_amari_distance(X_test, jac_fn_eval, jac_mixing_batched,
+                                        unmixing_batched)
+        amari_append = np.array([[it + 1, amari.item()]])
+        amari_test_hist = np.concatenate([amari_test_hist, amari_append])
+        np.savetxt(os.path.join(log_dir, 'amari_test.csv'), amari_test_hist,
+                   delimiter=',', header='it,amari', comments='')
+
+        S_rec = inv_map.apply(params_eval, None, X_train)
+        if base_name == 'gaussian':
+            S_rec_uni = jax.scipy.stats.norm.cdf(S_rec)
+        elif base_name == 'logistic':
+            S_rec_uni = jax.scipy.stats.logistic.cdf(S_rec)
+        else:
+            raise NotImplementedError('The base distribution ' + base_name + ' is not implemented.')
+        S_rec_uni_train = S_rec_uni - 0.5
+
+        av_corr_spearman, _, _ = SolveHungarian(recov=S_rec_uni_train[::10, :], source=S_train[::10, :],
+                                                correlation='Spearman')
+        av_corr_pearson, _, _ = SolveHungarian(recov=S_rec_uni_train[::10, :], source=S_train[::10, :],
+                                               correlation='Pearson')
+        mcc_append = np.array([[it + 1, av_corr_spearman.item(), av_corr_pearson.item()]])
+        mcc_train_hist = np.concatenate([mcc_train_hist, mcc_append])
+        np.savetxt(os.path.join(log_dir, 'mcc_train.csv'), mcc_train_hist,
+                   delimiter=',', header='it,spearman,pearson', comments='')
+
+        S_rec = inv_map.apply(params_eval, None, X_test)
+        if base_name == 'gaussian':
+            S_rec_uni = jax.scipy.stats.norm.cdf(S_rec)
+        elif base_name == 'logistic':
+            S_rec_uni = jax.scipy.stats.logistic.cdf(S_rec)
+        else:
+            raise NotImplementedError('The base distribution ' + base_name + ' is not implemented.')
+        S_rec_uni_test = S_rec_uni - 0.5
+
+        av_corr_spearman, _, _ = SolveHungarian(recov=S_rec_uni_test[::10, :], source=S_train[::10, :],
+                                                correlation='Spearman')
+        av_corr_pearson, _, _ = SolveHungarian(recov=S_rec_uni_test[::10, :], source=S_train[::10, :],
+                                               correlation='Pearson')
+        mcc_append = np.array([[it + 1, av_corr_spearman.item(), av_corr_pearson.item()]])
+        mcc_train_hist = np.concatenate([mcc_test_hist, mcc_append])
+        np.savetxt(os.path.join(log_dir, 'mcc_test.csv'), mcc_test_hist,
+                   delimiter=',', header='it,spearman,pearson', comments='')
+
         # Plots
         if D == 2:
-            S_rec = inv_map.apply(params_eval, None, X_train)
-            S_rec_uni = jnp.column_stack([jax.scipy.stats.norm.cdf(S_rec[:, 0]),
-                                          jax.scipy.stats.norm.cdf(S_rec[:, 1])])
-            S_rec_uni -= 0.5
-            scatterplot_variables(S_rec_uni, 'Reconstructed sources (train)',
+            scatterplot_variables(S_rec_uni_train, 'Reconstructed sources (train)',
                                   colors=colors_train, savefig=True, show=False,
                                   fname=os.path.join(plot_dir, 'rec_sources_train_%06i.png' % (it + 1)))
             plt.close()
 
-            S_rec = inv_map.apply(params_eval, None, X_test)
-            S_rec_uni = jnp.column_stack([jax.scipy.stats.norm.cdf(S_rec[:, 0]),
-                                          jax.scipy.stats.norm.cdf(S_rec[:, 1])])
-            S_rec_uni -= 0.5
-            scatterplot_variables(S_rec_uni, 'Reconstructed sources (test)',
+            scatterplot_variables(S_rec_uni_test, 'Reconstructed sources (test)',
                                   colors=colors_test, savefig=True, show=False,
                                   fname=os.path.join(plot_dir, 'rec_sources_test_%06i.png' % (it + 1)))
             plt.close()
