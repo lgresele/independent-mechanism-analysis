@@ -170,12 +170,14 @@ params = logp.init(subkey, jnp.array(np.random.randn(5, D)))
 inv_map = hk.transform(inv_map_fn)
 
 # Make triangular
-hu_masks = [hidden_units[0] // D for _ in range(D)]
-remainder = hidden_units[0] - np.sum(hu_masks)
-for ind in range(remainder):
-    hu_masks[-(ind + 1)] = hu_masks[-(ind + 1)] + 1
-masks = masks_triangular_weights(hu_masks)
-params = make_weights_triangular(params, masks)
+triangular = config['model']['triangular']
+if triangular:
+    hu_masks = [hidden_units[0] // D for _ in range(D)]
+    remainder = hidden_units[0] - np.sum(hu_masks)
+    for ind in range(remainder):
+        hu_masks[-(ind + 1)] = hu_masks[-(ind + 1)] + 1
+    masks = masks_triangular_weights(hu_masks)
+    params = make_weights_triangular(params, masks)
 
 # Apply spectral normalization
 key, subkey = jax.random.split(key)
@@ -236,17 +238,29 @@ if D == 2:
     zz = jnp.column_stack([xx.reshape(-1), yy.reshape(-1)])
 
 # Iteration
-@jax.jit
-def step(it_, opt_state_, uv_, x_):
-    params_ = get_params(opt_state_)
-    params_ = make_weights_triangular(params_, masks) # makes Jacobian triangular
-    params_, uv_ = spectral_normalization(params_, uv_)
-    params_flat = jax.tree_util.tree_flatten(params_)[0]
-    for ind in range(len(params_flat)):
-        opt_state.packed_state[ind][0] = params_flat[ind]
-    value, grads = jax.value_and_grad(loss, 0)(params_, x_)
-    opt_state_ = opt_update(it_, grads, opt_state_)
-    return value, opt_state_, uv_
+if triangular:
+    @jax.jit
+    def step(it_, opt_state_, uv_, x_):
+        params_ = get_params(opt_state_)
+        params_ = make_weights_triangular(params_, masks) # makes Jacobian triangular
+        params_, uv_ = spectral_normalization(params_, uv_)
+        params_flat = jax.tree_util.tree_flatten(params_)[0]
+        for ind in range(len(params_flat)):
+            opt_state.packed_state[ind][0] = params_flat[ind]
+        value, grads = jax.value_and_grad(loss, 0)(params_, x_)
+        opt_state_ = opt_update(it_, grads, opt_state_)
+        return value, opt_state_, uv_
+else:
+    @jax.jit
+    def step(it_, opt_state_, uv_, x_):
+        params_ = get_params(opt_state_)
+        params_, uv_ = spectral_normalization(params_, uv_)
+        params_flat = jax.tree_util.tree_flatten(params_)[0]
+        for ind in range(len(params_flat)):
+            opt_state.packed_state[ind][0] = params_flat[ind]
+        value, grads = jax.value_and_grad(loss, 0)(params_, x_)
+        opt_state_ = opt_update(it_, grads, opt_state_)
+        return value, opt_state_, uv_
 
 
 # Training
@@ -264,7 +278,8 @@ for it in range(num_iter):
 
         # Get params
         params_eval = get_params(opt_state)
-        params_eval = make_weights_triangular(params_eval, masks)
+        if triangular:
+            params_eval = make_weights_triangular(params_eval, masks)
         params_eval, _ = spectral_normalization(params_eval, uv)
 
         # Measures
@@ -376,7 +391,8 @@ for it in range(num_iter):
 
     if (it + 1) % ckpt_iter == 0:
         params_save = get_params(opt_state)
-        params_save = make_weights_triangular(params_save, masks)
+        if triangular:
+            params_save = make_weights_triangular(params_save, masks)
         params_save, uv_save = spectral_normalization(params_save, uv)
 
         jnp.save(os.path.join(ckpt_dir, 'model_%06i.npy' % (it + 1)),

@@ -6,6 +6,7 @@ data:
   epsilon: 2
 
 model:
+  triangular: True
   base: gaussian
   flow_layers: 64
   nn_layers: 2
