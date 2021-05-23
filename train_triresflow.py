@@ -181,8 +181,9 @@ if triangular:
 
 # Apply spectral normalization
 key, subkey = jax.random.split(key)
+spect_norm_coef = config['model']['spect_norm_coef']
 uv = spectral_norm_init(params, subkey)
-params, uv = spectral_normalization(params, uv)
+params, uv = spectral_normalization(params, uv, coef=spect_norm_coef)
 
 
 # Prepare training
@@ -243,7 +244,7 @@ if triangular:
     def step(it_, opt_state_, uv_, x_):
         params_ = get_params(opt_state_)
         params_ = make_weights_triangular(params_, masks) # makes Jacobian triangular
-        params_, uv_ = spectral_normalization(params_, uv_)
+        params_, uv_ = spectral_normalization(params_, uv_, coef=spect_norm_coef)
         params_flat = jax.tree_util.tree_flatten(params_)[0]
         for ind in range(len(params_flat)):
             opt_state.packed_state[ind][0] = params_flat[ind]
@@ -254,7 +255,7 @@ else:
     @jax.jit
     def step(it_, opt_state_, uv_, x_):
         params_ = get_params(opt_state_)
-        params_, uv_ = spectral_normalization(params_, uv_)
+        params_, uv_ = spectral_normalization(params_, uv_, coef=spect_norm_coef)
         params_flat = jax.tree_util.tree_flatten(params_)[0]
         for ind in range(len(params_flat)):
             opt_state.packed_state[ind][0] = params_flat[ind]
@@ -280,7 +281,7 @@ for it in range(num_iter):
         params_eval = get_params(opt_state)
         if triangular:
             params_eval = make_weights_triangular(params_eval, masks)
-        params_eval, _ = spectral_normalization(params_eval, uv)
+        params_eval, _ = spectral_normalization(params_eval, uv, coef=spect_norm_coef)
 
         # Measures
         log_p = -loss(params_eval, X_train)
@@ -393,7 +394,7 @@ for it in range(num_iter):
         params_save = get_params(opt_state)
         if triangular:
             params_save = make_weights_triangular(params_save, masks)
-        params_save, uv_save = spectral_normalization(params_save, uv)
+        params_save, uv_save = spectral_normalization(params_save, uv, coef=spect_norm_coef)
 
         jnp.save(os.path.join(ckpt_dir, 'model_%06i.npy' % (it + 1)),
                  hk.data_structures.to_mutable_dict(params_save))

@@ -11,6 +11,7 @@ model:
   flow_layers: 64
   nn_layers: 2
   nn_hidden_units: 128
+  spect_norm_coef: 0.97
 
 training:
   num_iter: 10000
