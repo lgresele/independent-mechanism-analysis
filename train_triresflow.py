@@ -284,7 +284,7 @@ for it in range(num_iter):
         params_eval, _ = spectral_normalization(params_eval, uv, coef=spect_norm_coef)
 
         # Measures
-        log_p = -loss(params_eval, X_train)
+        log_p = jnp.mean(logp.apply(params_eval, None, X_train))
         log_p_append = np.array([[it + 1, log_p.item()]])
         log_p_train_hist = np.concatenate([log_p_train_hist, log_p_append])
         np.savetxt(os.path.join(log_dir, 'log_p_train.csv'), log_p_train_hist,
@@ -296,7 +296,7 @@ for it in range(num_iter):
         np.savetxt(os.path.join(log_dir, 'kld_train.csv'), kld_train_hist,
                    delimiter=',', header='it,kld', comments='')
 
-        log_p = -loss(params_eval, X_test)
+        log_p = jnp.mean(logp.apply(params_eval, None, X_test))
         log_p_append = np.array([[it + 1, log_p.item()]])
         log_p_test_hist = np.concatenate([log_p_test_hist, log_p_append])
         np.savetxt(os.path.join(log_dir, 'log_p_test.csv'), log_p_test_hist,
