@@ -203,7 +203,7 @@ else:
         ll = logp.apply(params, None, x)
         return -jnp.mean(ll) + beta * jnp.mean(c_ima)
 
-    cima_warmup = config['cima_warmup']
+    cima_warmup = config['training']['cima_warmup']
 
 # cima functions
 if D == 2:
