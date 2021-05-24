@@ -181,8 +181,9 @@ if triangular:
 
 # Apply spectral normalization
 key, subkey = jax.random.split(key)
+spect_norm_coef = config['model']['spect_norm_coef']
 uv = spectral_norm_init(params, subkey)
-params, uv = spectral_normalization(params, uv)
+params, uv = spectral_normalization(params, uv, coef=spect_norm_coef)
 
 
 # Prepare training
@@ -190,15 +191,19 @@ params, uv = spectral_normalization(params, uv)
 # Performance measures
 lag_mult = config['training']['lag_mult']
 if lag_mult is None:
-    def loss(params, x):
+    def loss(params, x, beta):
         ll = logp.apply(params, None, x)
         return -jnp.mean(ll)
+
+    cima_warmup = None
 else:
-    def loss(params, x):
+    def loss(params, x, beta):
         jac_fn = jax.vmap(jax.jacfwd(lambda y: inv_map.apply(params, None, y)))
         c_ima = cima(x, jac_fn)
         ll = logp.apply(params, None, x)
-        return -jnp.mean(ll) + lag_mult * jnp.mean(c_ima)
+        return -jnp.mean(ll) + beta * jnp.mean(c_ima)
+
+    cima_warmup = config['training']['cima_warmup']
 
 # cima functions
 if D == 2:
@@ -240,25 +245,25 @@ if D == 2:
 # Iteration
 if triangular:
     @jax.jit
-    def step(it_, opt_state_, uv_, x_):
+    def step(it_, opt_state_, uv_, x_, beta_):
         params_ = get_params(opt_state_)
         params_ = make_weights_triangular(params_, masks) # makes Jacobian triangular
-        params_, uv_ = spectral_normalization(params_, uv_)
+        params_, uv_ = spectral_normalization(params_, uv_, coef=spect_norm_coef)
         params_flat = jax.tree_util.tree_flatten(params_)[0]
         for ind in range(len(params_flat)):
             opt_state.packed_state[ind][0] = params_flat[ind]
-        value, grads = jax.value_and_grad(loss, 0)(params_, x_)
+        value, grads = jax.value_and_grad(loss, 0)(params_, x_, beta_)
         opt_state_ = opt_update(it_, grads, opt_state_)
         return value, opt_state_, uv_
 else:
     @jax.jit
-    def step(it_, opt_state_, uv_, x_):
+    def step(it_, opt_state_, uv_, x_, beta_):
         params_ = get_params(opt_state_)
-        params_, uv_ = spectral_normalization(params_, uv_)
+        params_, uv_ = spectral_normalization(params_, uv_, coef=spect_norm_coef)
         params_flat = jax.tree_util.tree_flatten(params_)[0]
         for ind in range(len(params_flat)):
             opt_state.packed_state[ind][0] = params_flat[ind]
-        value, grads = jax.value_and_grad(loss, 0)(params_, x_)
+        value, grads = jax.value_and_grad(loss, 0)(params_, x_, beta_)
         opt_state_ = opt_update(it_, grads, opt_state_)
         return value, opt_state_, uv_
 
@@ -266,7 +271,11 @@ else:
 # Training
 for it in range(num_iter):
     x = X_train[np.random.choice(N, batch_size)]
-    loss_val, opt_state, uv = step(it, opt_state, uv, x)
+    if cima_warmup is None:
+        beta = lag_mult
+    else:
+        beta = lag_mult * np.max([0., np.min([1., it / cima_warmup - 1.])])
+    loss_val, opt_state, uv = step(it, opt_state, uv, x, beta)
 
     loss_append = np.array([[it + 1, loss_val.item()]])
     loss_hist = np.concatenate([loss_hist, loss_append])
@@ -280,10 +289,10 @@ for it in range(num_iter):
         params_eval = get_params(opt_state)
         if triangular:
             params_eval = make_weights_triangular(params_eval, masks)
-        params_eval, _ = spectral_normalization(params_eval, uv)
+        params_eval, _ = spectral_normalization(params_eval, uv, coef=spect_norm_coef)
 
         # Measures
-        log_p = -loss(params_eval, X_train)
+        log_p = jnp.mean(logp.apply(params_eval, None, X_train))
         log_p_append = np.array([[it + 1, log_p.item()]])
         log_p_train_hist = np.concatenate([log_p_train_hist, log_p_append])
         np.savetxt(os.path.join(log_dir, 'log_p_train.csv'), log_p_train_hist,
@@ -295,7 +304,7 @@ for it in range(num_iter):
         np.savetxt(os.path.join(log_dir, 'kld_train.csv'), kld_train_hist,
                    delimiter=',', header='it,kld', comments='')
 
-        log_p = -loss(params_eval, X_test)
+        log_p = jnp.mean(logp.apply(params_eval, None, X_test))
         log_p_append = np.array([[it + 1, log_p.item()]])
         log_p_test_hist = np.concatenate([log_p_test_hist, log_p_append])
         np.savetxt(os.path.join(log_dir, 'log_p_test.csv'), log_p_test_hist,
@@ -393,7 +402,7 @@ for it in range(num_iter):
         params_save = get_params(opt_state)
         if triangular:
             params_save = make_weights_triangular(params_save, masks)
-        params_save, uv_save = spectral_normalization(params_save, uv)
+        params_save, uv_save = spectral_normalization(params_save, uv, coef=spect_norm_coef)
 
         jnp.save(os.path.join(ckpt_dir, 'model_%06i.npy' % (it + 1)),
                  hk.data_structures.to_mutable_dict(params_save))
