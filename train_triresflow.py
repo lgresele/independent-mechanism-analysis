@@ -191,15 +191,19 @@ params, uv = spectral_normalization(params, uv, coef=spect_norm_coef)
 # Performance measures
 lag_mult = config['training']['lag_mult']
 if lag_mult is None:
-    def loss(params, x):
+    def loss(params, x, beta):
         ll = logp.apply(params, None, x)
         return -jnp.mean(ll)
+
+    cima_warmup = None
 else:
-    def loss(params, x):
+    def loss(params, x, beta):
         jac_fn = jax.vmap(jax.jacfwd(lambda y: inv_map.apply(params, None, y)))
         c_ima = cima(x, jac_fn)
         ll = logp.apply(params, None, x)
-        return -jnp.mean(ll) + lag_mult * jnp.mean(c_ima)
+        return -jnp.mean(ll) + beta * jnp.mean(c_ima)
+
+    cima_warmup = config['cima_warmup']
 
 # cima functions
 if D == 2:
@@ -241,25 +245,25 @@ if D == 2:
 # Iteration
 if triangular:
     @jax.jit
-    def step(it_, opt_state_, uv_, x_):
+    def step(it_, opt_state_, uv_, x_, beta_):
         params_ = get_params(opt_state_)
         params_ = make_weights_triangular(params_, masks) # makes Jacobian triangular
         params_, uv_ = spectral_normalization(params_, uv_, coef=spect_norm_coef)
         params_flat = jax.tree_util.tree_flatten(params_)[0]
         for ind in range(len(params_flat)):
             opt_state.packed_state[ind][0] = params_flat[ind]
-        value, grads = jax.value_and_grad(loss, 0)(params_, x_)
+        value, grads = jax.value_and_grad(loss, 0)(params_, x_, beta_)
         opt_state_ = opt_update(it_, grads, opt_state_)
         return value, opt_state_, uv_
 else:
     @jax.jit
-    def step(it_, opt_state_, uv_, x_):
+    def step(it_, opt_state_, uv_, x_, beta_):
         params_ = get_params(opt_state_)
         params_, uv_ = spectral_normalization(params_, uv_, coef=spect_norm_coef)
         params_flat = jax.tree_util.tree_flatten(params_)[0]
         for ind in range(len(params_flat)):
             opt_state.packed_state[ind][0] = params_flat[ind]
-        value, grads = jax.value_and_grad(loss, 0)(params_, x_)
+        value, grads = jax.value_and_grad(loss, 0)(params_, x_, beta_)
         opt_state_ = opt_update(it_, grads, opt_state_)
         return value, opt_state_, uv_
 
@@ -267,7 +271,11 @@ else:
 # Training
 for it in range(num_iter):
     x = X_train[np.random.choice(N, batch_size)]
-    loss_val, opt_state, uv = step(it, opt_state, uv, x)
+    if cima_warmup is None:
+        beta = lag_mult
+    else:
+        beta = lag_mult * np.max([0., np.min([1., it / cima_warmup - 1.])])
+    loss_val, opt_state, uv = step(it, opt_state, uv, x, beta)
 
     loss_append = np.array([[it + 1, loss_val.item()]])
     loss_hist = np.concatenate([loss_hist, loss_append])
