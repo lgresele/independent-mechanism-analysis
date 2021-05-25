@@ -274,7 +274,7 @@ for it in range(num_iter):
     if cima_warmup is None:
         beta = lag_mult
     else:
-        beta = lag_mult * np.max([0., np.min([1., it / cima_warmup - 1.])])
+        beta = lag_mult * np.min([1., it / cima_warmup])
     loss_val, opt_state, uv = step(it, opt_state, uv, x, beta)
 
     loss_append = np.array([[it + 1, loss_val.item()]])
