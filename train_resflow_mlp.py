@@ -82,12 +82,15 @@ def leaky_tanh(x, alpha=1.0, beta=0.1):
 
 Nonlinearity = elementwise(leaky_tanh)
 
-num_layers = config['data']['mlp_layers']
+num_mlp_layers = config['data']['mlp_layers']
 
-layers = [Dense(D, W_init=jax.nn.initializers.orthogonal()), Nonlinearity] * (num_layers - 1) \
-         + [Dense(D, W_init=jax.nn.initializers.orthogonal())]
+mlp_layers = []
+for _ in range(num_mlp_layers - 1):
+    mlp_layers += [Dense(D, W_init=jax.nn.initializers.orthogonal()),
+                   Nonlinearity]
+mlp_layers += [Dense(D, W_init=jax.nn.initializers.orthogonal())]
 
-init_random_params, MLP = serial(*layers)
+init_random_params, MLP = serial(*mlp_layers)
 
 key, subkey = jax.random.split(key)
 _, params_mlp = init_random_params(subkey, (-1, D))
@@ -103,8 +106,8 @@ X_train -= mean_train
 X_test -= mean_train
 
 from metrics import cima_higher_d_fwd
-cima_mlp_train = jnp.mean(cima_higher_d_fwd(S_train, forward_mlp))
-cima_mlp_test = jnp.mean(cima_higher_d_fwd(S_test, forward_mlp))
+cima_mlp_train = jnp.mean(cima_higher_d_fwd(S_train, jac_mlp))
+cima_mlp_test = jnp.mean(cima_higher_d_fwd(S_test, jac_mlp))
 
 
 # Save parameters of Moebius transformation
