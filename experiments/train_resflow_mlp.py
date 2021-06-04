@@ -4,6 +4,7 @@ from jax import numpy as jnp
 import numpy as np
 import distrax
 import haiku as hk
+from . import residual, utils, metrics, solve_hungarian
 from residual import TriangularResidual, ConstantScaling, spectral_norm_init, spectral_normalization, masks_triangular_weights, make_weights_triangular
 from utils import get_config
 from metrics import observed_data_likelihood, jacobian_amari_distance
