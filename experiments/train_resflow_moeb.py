@@ -4,12 +4,11 @@ from jax import numpy as jnp
 import numpy as np
 import distrax
 import haiku as hk
-from ima import residual, utils, metrics, solve_hungarian
-from residual import TriangularResidual, ConstantScaling, spectral_norm_init, spectral_normalization, masks_triangular_weights, make_weights_triangular
-from utils import get_config
-from metrics import observed_data_likelihood, jacobian_amari_distance
-from mixing_functions import build_moebius_transform
-from solve_hungarian import SolveHungarian
+from ima.residual import TriangularResidual, ConstantScaling, spectral_norm_init, spectral_normalization, masks_triangular_weights, make_weights_triangular
+from ima.utils import get_config
+from ima.metrics import observed_data_likelihood, jacobian_amari_distance
+from ima.mixing_functions import build_moebius_transform
+from ima.solve_hungarian import SolveHungarian
 
 from jax.experimental.optimizers import adam
 
