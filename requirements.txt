@@ -1,2 +1,7 @@
+matplotlib
 numpy
 scipy
+jax
+jaxlib # CPU only version
+distrax
+git+https://github.com/deepmind/dm-haiku
