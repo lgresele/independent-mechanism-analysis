@@ -3,18 +3,24 @@
 data:
   n: 10000
   dim: 10
+  epsilon: 2
 
 model:
+  triangular: True
+  base: gaussian
   flow_layers: 64
   nn_layers: 2
   nn_hidden_units: 128
+  spect_norm_coef: 0.97
 
 training:
   num_iter: 200000
   batch_size: 256
   lr: 1.e-3
+  lag_mult: null
+  cima_warmup: null
   jax_seed: 0
   np_seed: 0
   log_iter: 1000
   checkpoint_iter: 5000
-  save_root: /draco/u/vstimper/projects/ica-flows/experiments/triresflow/10d/0000
+  save_root: ./out/darmois/10d/moeb

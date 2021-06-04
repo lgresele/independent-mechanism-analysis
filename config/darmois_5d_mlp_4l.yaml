@@ -23,4 +23,4 @@ training:
   np_seed: 0
   log_iter: 1000
   checkpoint_iter: 5000
-  save_root: /draco/u/vstimper/projects/ica-flows/experiments/triresflow/mlp/4l/0000
+  save_root: ./out/darmois/5d/mlp/4l

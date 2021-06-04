@@ -23,4 +23,4 @@ training:
   np_seed: 0
   log_iter: 1000
   checkpoint_iter: 5000
-  save_root: /draco/u/vstimper/projects/ica-flows/experiments/cima_obj/eps2/2d/1_0/0000
+  save_root: ./out/cima_obj/2d/moeb/1_0
