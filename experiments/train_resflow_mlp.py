@@ -60,7 +60,7 @@ jnp.save(os.path.join(data_dir, 'sources_test.npy'), S_test)
 
 # Plot the sources
 if D == 2:
-    from plotting import cart2pol, scatterplot_variables
+    from ima.plotting import cart2pol, scatterplot_variables
 
     _, colors_train = cart2pol(S_train[:, 0], S_train[:, 1])
     _, colors_test = cart2pol(S_test[:, 0], S_test[:, 1])
@@ -103,7 +103,7 @@ std_train = jnp.std(X_train, axis=0)
 X_train -= mean_train
 X_test -= mean_train
 
-from metrics import cima_higher_d_fwd
+from ima.metrics import cima_higher_d_fwd
 cima_mlp_train = jnp.mean(cima_higher_d_fwd(S_train, jac_mlp))
 cima_mlp_test = jnp.mean(cima_higher_d_fwd(S_test, jac_mlp))
 
@@ -196,9 +196,9 @@ else:
 
 # cima functions
 if D == 2:
-    from metrics import cima
+    from ima.metrics import cima
 else:
-    from metrics import cima_higher_d as cima
+    from ima.metrics import cima_higher_d as cima
 
 # Optimizer
 num_iter = config['training']['num_iter']
