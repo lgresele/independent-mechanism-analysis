@@ -1,0 +1,24 @@
+# Config file specifying the setup of a Triangular Residual Flow
+
+data:
+  n: 10000
+  dim: 5
+  epsilon: 2
+
+model:
+  triangular: False
+  base: logistic
+  flow_layers: 64
+  nn_layers: 2
+  nn_hidden_units: 128
+
+training:
+  num_iter: 200000
+  batch_size: 256
+  lr: 1.e-3
+  lag_mult: 1.
+  jax_seed: 0
+  np_seed: 0
+  log_iter: 1000
+  checkpoint_iter: 5000
+  save_root: /draco/u/vstimper/projects/ica-flows/experiments/cima_obj/5d/1_0/0000
