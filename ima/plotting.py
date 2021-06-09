@@ -1,7 +1,3 @@
-'''
-Various plotting functions I am using over and over
-'''
-
 from jax import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.collections import LineCollection
