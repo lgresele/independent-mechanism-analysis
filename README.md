@@ -3,10 +3,10 @@
 
 ## Installation
 
-In order to install the package and all dependencies, simply navigate into the folder and run
+In order to install the package and all dependencies, run
 
 ```
-pip install .
+pip install --upgrade git+https://github.com/lgresele/ica_and_icm.git
 ```
 Note a different version of `jaxlib` might have to be installed to enable GPU acceleration.
 
