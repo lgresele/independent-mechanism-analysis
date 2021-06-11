@@ -1,4 +1,4 @@
-# Idependent mechanism analysis
+# Independent mechanism analysis
 
 
 ## Installation
