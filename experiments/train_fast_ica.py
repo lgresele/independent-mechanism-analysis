@@ -138,7 +138,7 @@ jnp.save(os.path.join(data_dir, 'observation_test.npy'), X_test)
 
 # Do ICA
 from sklearn.decomposition import FastICA
-ica = FastICA(n_components=D, whiten=False)
+ica = FastICA(n_components=D, whiten=True)
 
 S_rec_train = ica.fit_transform(X_train)
 A_ = ica.mixing_
