@@ -6,3 +6,5 @@ jaxlib # CPU only version
 distrax
 dm-haiku
 pyyaml
+scikit-learn
+
