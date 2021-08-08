@@ -4,5 +4,5 @@ scipy
 jax
 jaxlib # CPU only version
 distrax
-dm-haiku @ git+https://github.com/deepmind/dm-haiku@b2ae68ecbec47e75f12eb318c40b0b9cb61b5bce
+dm-haiku
 pyyaml
