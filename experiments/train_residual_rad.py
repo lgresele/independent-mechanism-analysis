@@ -7,7 +7,7 @@ import haiku as hk
 from ima.residual import TriangularResidual, ConstantScaling, spectral_norm_init, spectral_normalization, masks_triangular_weights, make_weights_triangular
 from ima.utils import get_config
 from ima.metrics import observed_data_likelihood, jacobian_amari_distance
-from ima.mixing_functions import build_moebius_transform
+from ima.mixing_functions import build_radial_map
 from ima.solve_hungarian import SolveHungarian
 
 from jax.experimental.optimizers import adam
@@ -76,22 +76,12 @@ if D == 2:
     plt.close()
 
 # Generate a random orthogonal matrix
-from scipy.stats import ortho_group # Requires version 0.18 of scipy
-A = ortho_group.rvs(dim=D)
-A = jnp.array(A)
-# Scalar
-alpha = 1.0
-# Two vectors with data dimensionality
-a = []
-while len(a) < D:
-    s = np.random.randn()
-    if np.abs(s) > 0.5:
-        a = a + [s]
-a = jnp.array(a) # a vector in \RR^D
-b = jnp.zeros(D) # a vector in \RR^D
-epsilon = config['data']['epsilon']
+S = jnp.array(np.diag(np.random.rand(2) + 0.5))
+# Generate random shift
+a = np.random.rand(2) * 2
+a = jnp.array(a)
 
-mixing, unmixing = build_moebius_transform(alpha, A, a, b, epsilon=epsilon)
+mixing, unmixing = build_radial_map(a, S)
 mixing_batched = jax.vmap(mixing)
 
 X_train = mixing_batched(S_train)
@@ -102,19 +92,22 @@ std_train = jnp.std(X_train, axis=0)
 X_train -= mean_train
 X_test -= mean_train
 
-b = b - mean_train
+def mixing_shift(s):
+    return mixing(s) - mean_train
 
-mixing, unmixing = build_moebius_transform(alpha, A, a, b, epsilon=epsilon)
-unmixing_batched = jax.vmap(unmixing)
-jac_mixing_batched = jax.vmap(jax.jacfwd(mixing))
+def unmixing_shift(x):
+    return unmixing(x + mean_train)
+
+unmixing_shift_batched = jax.vmap(unmixing_shift)
+jac_mixing_shift_batched = jax.vmap(jax.jacfwd(mixing_shift))
 
 
 # Save parameters of Moebius transformation
-jnp.save(os.path.join(data_dir, 'moebius_transform_params.npy'),
-         {'A': A, 'a': a, 'b': b})
+jnp.save(os.path.join(data_dir, 'radial_transform_params.npy'),
+         {'S': S, 'a': a})
 
 # Compute true log probability
-true_log_p_fn = jax.vmap(lambda arg: observed_data_likelihood(arg, jax.jacfwd(unmixing)))
+true_log_p_fn = jax.vmap(lambda arg: observed_data_likelihood(arg, jax.jacfwd(unmixing_shift)))
 true_log_p_train = true_log_p_fn(X_train)
 true_log_p_test = true_log_p_fn(X_test)
 
@@ -329,15 +322,15 @@ for it in range(num_iter):
         np.savetxt(os.path.join(log_dir, 'cima_test.csv'), cima_test_hist,
                    delimiter=',', header='it,cima', comments='')
 
-        amari = jacobian_amari_distance(X_train, jac_fn_eval, jac_mixing_batched,
-                                        unmixing_batched)
+        amari = jacobian_amari_distance(X_train, jac_fn_eval, jac_mixing_shift_batched,
+                                        unmixing_shift_batched)
         amari_append = np.array([[it + 1, amari.item()]])
         amari_train_hist = np.concatenate([amari_train_hist, amari_append])
         np.savetxt(os.path.join(log_dir, 'amari_train.csv'), amari_train_hist,
                    delimiter=',', header='it,amari', comments='')
 
-        amari = jacobian_amari_distance(X_test, jac_fn_eval, jac_mixing_batched,
-                                        unmixing_batched)
+        amari = jacobian_amari_distance(X_test, jac_fn_eval, jac_mixing_shift_batched,
+                                        unmixing_shift_batched)
         amari_append = np.array([[it + 1, amari.item()]])
         amari_test_hist = np.concatenate([amari_test_hist, amari_append])
         np.savetxt(os.path.join(log_dir, 'amari_test.csv'), amari_test_hist,
