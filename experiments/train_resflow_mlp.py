@@ -6,6 +6,9 @@ import distrax
 import haiku as hk
 from ima.residual import TriangularResidual, ConstantScaling, spectral_norm_init, spectral_normalization, masks_triangular_weights, make_weights_triangular
 from ima.utils import get_config
+from ima.metrics import observed_data_likelihood, jacobian_amari_distance
+from ima.mixing_functions import build_moebius_transform
+from ima.solve_hungarian import SolveHungarian
 
 from jax.experimental.optimizers import adam
 
@@ -38,7 +41,7 @@ data_dir = os.path.join(root, 'data')
 # Create dirs if not existent
 for dir in [ckpt_dir, plot_dir, log_dir, data_dir]:
     if not os.path.isdir(dir):
-        os.mkdir(dir)
+        os.makedirs(dir)
 
 
 # Data generation
@@ -81,12 +84,20 @@ def leaky_tanh(x, alpha=1.0, beta=0.1):
 Nonlinearity = elementwise(leaky_tanh)
 
 num_mlp_layers = config['data']['mlp_layers']
+init = config['data']['init']
+
+if init == 'uniform':
+    initializer = jax.nn.initializers.uniform()
+elif init == 'normal':
+    initializer = jax.nn.initializers.normal()
+else:
+    initializer = jax.nn.initializers.orthogonal()
 
 mlp_layers = []
 for _ in range(num_mlp_layers - 1):
-    mlp_layers += [Dense(D, W_init=jax.nn.initializers.orthogonal()),
+    mlp_layers += [Dense(D, W_init=initializer),
                    Nonlinearity]
-mlp_layers += [Dense(D, W_init=jax.nn.initializers.orthogonal())]
+mlp_layers += [Dense(D, W_init=initializer)]
 
 init_random_params, MLP = serial(*mlp_layers)
 
@@ -106,6 +117,16 @@ X_test -= mean_train
 from ima.metrics import cima_higher_d_fwd
 cima_mlp_train = jnp.mean(cima_higher_d_fwd(S_train, jac_mlp))
 cima_mlp_test = jnp.mean(cima_higher_d_fwd(S_test, jac_mlp))
+
+compute_metrics = config['training']['compute_metrics']
+
+if compute_metrics:
+    # Compute true log probability
+    true_log_p_fn = jax.vmap(lambda arg: observed_data_likelihood(arg, jac_mixing=jax.jacfwd(forward_mlp)))
+    true_log_p_train = true_log_p_fn(X_train)
+    true_log_p_test = true_log_p_fn(X_test)
+    true_log_p_train_avg = jnp.mean(true_log_p_train)
+    true_log_p_test_avg = jnp.mean(true_log_p_test)
 
 
 # Save parameters of Moebius transformation
@@ -218,6 +239,13 @@ cima_train_hist = np.zeros((0, 2))
 cima_test_hist = np.zeros((0, 2))
 cima_diff_train_hist = np.zeros((0, 2))
 cima_diff_test_hist = np.zeros((0, 2))
+if compute_metrics:
+    kld_train_hist = np.zeros((0, 2))
+    kld_test_hist = np.zeros((0, 2))
+    amari_train_hist = np.zeros((0, 2))
+    amari_test_hist = np.zeros((0, 2))
+    mcc_train_hist = np.zeros((0, 3))
+    mcc_test_hist = np.zeros((0, 3))
 
 if D == 2:
     npoints = 300
@@ -313,6 +341,73 @@ for it in range(num_iter):
         cima_diff_test_hist = np.concatenate([cima_diff_test_hist, cima_diff_append])
         np.savetxt(os.path.join(log_dir, 'cima_diff_test.csv'), cima_diff_test_hist,
                    delimiter=',', header='it,cima_diff', comments='')
+        
+        if compute_metrics:
+            
+            kld = true_log_p_train_avg - log_p
+            kld_append = np.array([[it + 1, kld.item()]])
+            kld_train_hist = np.concatenate([kld_train_hist, kld_append])
+            np.savetxt(os.path.join(log_dir, 'kld_train.csv'), kld_train_hist,
+                       delimiter=',', header='it,kld', comments='')
+            
+            kld = true_log_p_test_avg - log_p
+            kld_append = np.array([[it + 1, kld.item()]])
+            kld_test_hist = np.concatenate([kld_test_hist, kld_append])
+            np.savetxt(os.path.join(log_dir, 'kld_test.csv'), kld_test_hist,
+                       delimiter=',', header='it,kld', comments='')
+            
+            amari = jacobian_amari_distance(X_train, jac_fn_eval, jac_mixing_batched,
+                                        sources = S_train)
+            amari_append = np.array([[it + 1, amari.item()]])
+            amari_train_hist = np.concatenate([amari_train_hist, amari_append])
+            np.savetxt(os.path.join(log_dir, 'amari_train.csv'), amari_train_hist,
+                       delimiter=',', header='it,amari', comments='')
+
+            amari = jacobian_amari_distance(X_test, jac_fn_eval, jac_mixing_batched,
+                                            sources = S_test)
+            amari_append = np.array([[it + 1, amari.item()]])
+            amari_test_hist = np.concatenate([amari_test_hist, amari_append])
+            np.savetxt(os.path.join(log_dir, 'amari_test.csv'), amari_test_hist,
+                       delimiter=',', header='it,amari', comments='')
+
+            S_rec = inv_map.apply(params_eval, None, X_train)
+            if base_name == 'gaussian':
+                S_rec_uni = jax.scipy.stats.norm.cdf(S_rec)
+            elif base_name == 'logistic':
+                S_rec_uni = jax.scipy.stats.logistic.cdf(S_rec)
+            else:
+                raise NotImplementedError('The base distribution ' + base_name + ' is not implemented.')
+            S_rec_uni_train = S_rec_uni - 0.5
+
+            av_corr_spearman, _, _ = SolveHungarian(recov=S_rec_uni_train[::10, :], source=S_train[::10, :],
+                                                    correlation='Spearman')
+            av_corr_pearson, _, _ = SolveHungarian(recov=S_rec_uni_train[::10, :], source=S_train[::10, :],
+                                                   correlation='Pearson')
+            mcc_append = np.array([[it + 1, av_corr_spearman.item(), av_corr_pearson.item()]])
+            mcc_train_hist = np.concatenate([mcc_train_hist, mcc_append])
+            np.savetxt(os.path.join(log_dir, 'mcc_train.csv'), mcc_train_hist,
+                       delimiter=',', header='it,spearman,pearson', comments='')
+
+            S_rec = inv_map.apply(params_eval, None, X_test)
+            if base_name == 'gaussian':
+                S_rec_uni = jax.scipy.stats.norm.cdf(S_rec)
+            elif base_name == 'logistic':
+                S_rec_uni = jax.scipy.stats.logistic.cdf(S_rec)
+            else:
+                raise NotImplementedError('The base distribution ' + base_name + ' is not implemented.')
+            S_rec_uni_test = S_rec_uni - 0.5
+
+            av_corr_spearman, _, _ = SolveHungarian(recov=S_rec_uni_test[::10, :], source=S_test[::10, :],
+                                                    correlation='Spearman')
+            av_corr_pearson, _, _ = SolveHungarian(recov=S_rec_uni_test[::10, :], source=S_test[::10, :],
+                                                   correlation='Pearson')
+            mcc_append = np.array([[it + 1, av_corr_spearman.item(), av_corr_pearson.item()]])
+            mcc_test_hist = np.concatenate([mcc_test_hist, mcc_append])
+            np.savetxt(os.path.join(log_dir, 'mcc_test.csv'), mcc_test_hist,
+                       delimiter=',', header='it,spearman,pearson', comments='')
+            
+            
+        
         # Plots
         if D == 2:
             S_rec = inv_map.apply(params_eval, None, X_train)
@@ -360,3 +455,4 @@ for it in range(num_iter):
                  hk.data_structures.to_mutable_dict(params_save))
 
         jnp.save(os.path.join(ckpt_dir, 'uv_%06i.npy' % (it + 1)), uv_save)
+        
