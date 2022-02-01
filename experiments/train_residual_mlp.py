@@ -4,7 +4,7 @@ from jax import numpy as jnp
 import numpy as np
 import distrax
 import haiku as hk
-from ima.residual import TriangularResidual, ConstantScaling, spectral_norm_init, spectral_normalization, masks_triangular_weights, make_weights_triangular
+from ima.residual import Residual, ConstantScaling, spectral_norm_init, spectral_normalization, masks_triangular_weights, make_weights_triangular
 from ima.utils import get_config
 
 from jax.experimental.optimizers import adam
@@ -142,13 +142,13 @@ else:
     raise NotImplementedError('The base distribution ' + base_name + ' is not implemented.')
 
 def log_prob(x):
-    flows = distrax.Chain([TriangularResidual(hidden_units + [D], name='residual_' + str(i))
+    flows = distrax.Chain([Residual(hidden_units + [D], name='residual_' + str(i))
                            for i in range(n_layers)] + [ConstantScaling(std_train)])
     model = distrax.Transformed(base_dist, flows)
     return model.log_prob(x)
 
 def inv_map_fn(x):
-    flows = distrax.Chain([TriangularResidual(hidden_units + [D], name='residual_' + str(i))
+    flows = distrax.Chain([Residual(hidden_units + [D], name='residual_' + str(i))
                            for i in range(n_layers)] + [ConstantScaling(std_train)])
     return flows.inverse(x)
 
