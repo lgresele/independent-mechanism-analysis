@@ -4,7 +4,9 @@ import jax.numpy as jnp
 import numpy as np
 import haiku as hk
 
-class TriangularResidual(distrax.Bijector):
+
+
+class Residual(distrax.Bijector):
     """
     Residual flow layer with triangular Jacobian
     """
