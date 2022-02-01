@@ -84,7 +84,7 @@ def leaky_tanh(x, alpha=1.0, beta=0.1):
 Nonlinearity = elementwise(leaky_tanh)
 
 num_mlp_layers = config['data']['mlp_layers']
-init = config['data']['init']
+init = 'orthogonal' if not 'compute_metrics' in config['data'] else config['data']['init']
 
 if init == 'uniform':
     initializer = jax.nn.initializers.uniform()
@@ -118,7 +118,7 @@ from ima.metrics import cima_higher_d_fwd
 cima_mlp_train = jnp.mean(cima_higher_d_fwd(S_train, jac_mlp))
 cima_mlp_test = jnp.mean(cima_higher_d_fwd(S_test, jac_mlp))
 
-compute_metrics = config['training']['compute_metrics']
+compute_metrics = False if not 'compute_metrics' in config['training'] else config['training']['compute_metrics']
 
 if compute_metrics:
     # Compute true log probability
