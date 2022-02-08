@@ -134,10 +134,10 @@ def jacobian_amari_distance(x, jac_r_unmix, jac_t_mix, unmixing_batched=None, so
         Average of the Amari distance between the products of the two collections of Jacobians, evaluated in x and unmixing_batched(x) respectively.
     """
     J_r_unmix = jac_r_unmix(x)
-    if unmixing_batched:
-    	J_t_mix = jac_t_mix(unmixing_batched(x))
-    elif sources:
+    if unmixing_batched == None:
     	J_t_mix = jac_t_mix(sources)
+    elif sources == None:
+    	J_t_mix = jac_t_mix(unmixing_batched(x))
     else: raise Exception('Missing input arguments (unimixing_batched/sources)')
     
     return jnp.mean(amari_distance(J_r_unmix, J_t_mix))
@@ -159,10 +159,10 @@ def observed_data_likelihood(x, jac_unmixing=None, jac_mixing=None, base_log_pdf
     -------
     d: 
     '''
-    if jac_unimixing:
+    if jac_mixing == None:
     	jac = jac_unmixing(x)
     	log_det_jac = jnp.linalg.slogdet(jac)[1]
-    elif jac_mixing:
+    elif jac_unmixing == None:
     	jac = jac_mixing(x)
     	log_det_jac = -jnp.linalg.slogdet(jac)[1]
     else: raise Exception('Missing input arguments (jac_unmixing/jac_mixing)')

@@ -84,7 +84,7 @@ def leaky_tanh(x, alpha=1.0, beta=0.1):
 Nonlinearity = elementwise(leaky_tanh)
 
 num_mlp_layers = config['data']['mlp_layers']
-init = 'orthogonal' if not 'compute_metrics' in config['data'] else config['data']['init']
+init = 'orthogonal' if not 'init' in config['data'] else config['data']['init']
 
 if init == 'uniform':
     initializer = jax.nn.initializers.uniform()
@@ -123,8 +123,8 @@ compute_metrics = False if not 'compute_metrics' in config['training'] else conf
 if compute_metrics:
     # Compute true log probability
     true_log_p_fn = jax.vmap(lambda arg: observed_data_likelihood(arg, jac_mixing=jax.jacfwd(forward_mlp)))
-    true_log_p_train = true_log_p_fn(X_train)
-    true_log_p_test = true_log_p_fn(X_test)
+    true_log_p_train = true_log_p_fn(S_train)
+    true_log_p_test = true_log_p_fn(S_test)
     true_log_p_train_avg = jnp.mean(true_log_p_train)
     true_log_p_test_avg = jnp.mean(true_log_p_test)
 
@@ -281,6 +281,7 @@ else:
         return value, opt_state_, uv_
 
 
+
 # Training
 for it in range(num_iter):
     x = X_train[np.random.choice(N, batch_size)]
@@ -310,6 +311,14 @@ for it in range(num_iter):
         log_p_train_hist = np.concatenate([log_p_train_hist, log_p_append])
         np.savetxt(os.path.join(log_dir, 'log_p_train.csv'), log_p_train_hist,
                    delimiter=',', header='it,log_p', comments='')
+        
+        if compute_metrics:
+            
+            kld = true_log_p_train_avg - log_p
+            kld_append = np.array([[it + 1, kld.item()]])
+            kld_train_hist = np.concatenate([kld_train_hist, kld_append])
+            np.savetxt(os.path.join(log_dir, 'kld_train.csv'), kld_train_hist,
+                       delimiter=',', header='it,kld', comments='')
 
         log_p = jnp.mean(logp.apply(params_eval, None, X_test))
         log_p_append = np.array([[it + 1, log_p.item()]])
@@ -344,26 +353,20 @@ for it in range(num_iter):
         
         if compute_metrics:
             
-            kld = true_log_p_train_avg - log_p
-            kld_append = np.array([[it + 1, kld.item()]])
-            kld_train_hist = np.concatenate([kld_train_hist, kld_append])
-            np.savetxt(os.path.join(log_dir, 'kld_train.csv'), kld_train_hist,
-                       delimiter=',', header='it,kld', comments='')
-            
             kld = true_log_p_test_avg - log_p
             kld_append = np.array([[it + 1, kld.item()]])
             kld_test_hist = np.concatenate([kld_test_hist, kld_append])
             np.savetxt(os.path.join(log_dir, 'kld_test.csv'), kld_test_hist,
                        delimiter=',', header='it,kld', comments='')
             
-            amari = jacobian_amari_distance(X_train, jac_fn_eval, jac_mixing_batched,
+            amari = jacobian_amari_distance(X_train, jac_fn_eval, jac_mlp,
                                         sources = S_train)
             amari_append = np.array([[it + 1, amari.item()]])
             amari_train_hist = np.concatenate([amari_train_hist, amari_append])
             np.savetxt(os.path.join(log_dir, 'amari_train.csv'), amari_train_hist,
                        delimiter=',', header='it,amari', comments='')
 
-            amari = jacobian_amari_distance(X_test, jac_fn_eval, jac_mixing_batched,
+            amari = jacobian_amari_distance(X_test, jac_fn_eval, jac_mlp,
                                             sources = S_test)
             amari_append = np.array([[it + 1, amari.item()]])
             amari_test_hist = np.concatenate([amari_test_hist, amari_append])
