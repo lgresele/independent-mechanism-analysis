@@ -99,13 +99,10 @@ def f_lin(A):
     
     return f, f_inv
 
-'''
-Closed form Darmois construction for the linear Gaussian case
-'''
 
 def darmois_linear_gaussian_2d(A):
     '''
-    Returns the Darmois construction (and its inverse) for 2d Gaussian sources
+    Returns the closed form Darmois construction (and its inverse) for the case of linearly mixed Gaussian sources in 2d
     '''
     sigma_0 = jnp.sqrt(A[0,0]**2 + A[0,1]**2) 
     sigma_1 = jnp.sqrt(A[1,0]**2 + A[1,1]**2) 
@@ -124,26 +121,6 @@ def darmois_linear_gaussian_2d(A):
     
     return darmois, inv_darmois
 
-def darmois_linear_gaussian(A):
-    '''
-    Returns a Darmois-like construction (and its inverse) for Gaussian sources
-    in arbitrary dimension D
-    
-    N.B. This is still rather heuristic!
-    '''
-    A_inv = jnp.linalg.inv(A)
-    _, R = jnp.linalg.qr(A_inv)
-    R_inv = jnp.linalg.inv(R)
-    
-    def darmois(x):
-        y = R @ x
-        return 0.5*(1.0 + special.erf(y))
-
-    def inv_darmois(y):
-        y = special.erfinv(2*y - 1.0)
-        return R_inv @ y
-    
-    return darmois, inv_darmois
 
 def build_conformal_map(nonlinearity):
     '''

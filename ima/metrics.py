@@ -111,7 +111,7 @@ def amari_distance(W, A):
         return jnp.sum(jnp.sum(r ** 2, axis=-1) / jnp.max(r ** 2, axis=-1) - 1, axis=-1)
     return (s(jnp.abs(P)) + s(jnp.abs(jnp.transpose(P, (0, 2, 1))))) / (2 * P.shape[1])
 
-def jacobian_amari_distance(x, jac_r_unmix, jac_t_mix, unmixing_batched):
+def jacobian_amari_distance(x, jac_r_unmix, jac_t_mix, unmixing_batched=None, sources=None):
     """
     Computes the average of the Amari distance between the products of two collections of **batched** Jacobians evaluated at points x.
     It cancels when the composition of the functions whose Jacobians we multiply is a scalar function times a permutation.
@@ -126,6 +126,7 @@ def jacobian_amari_distance(x, jac_r_unmix, jac_t_mix, unmixing_batched):
     jac_r_unmix : jacobian function for the reconstructed unmixing (**batched**)
     jac_t_mix : jacobian function for the true unmixing (**batched**)
     unmixing_batched : true unmixing (**batched**)
+    sources : true sources
     
     Returns
     -------
@@ -133,27 +134,39 @@ def jacobian_amari_distance(x, jac_r_unmix, jac_t_mix, unmixing_batched):
         Average of the Amari distance between the products of the two collections of Jacobians, evaluated in x and unmixing_batched(x) respectively.
     """
     J_r_unmix = jac_r_unmix(x)
-    J_t_mix = jac_t_mix(unmixing_batched(x))
+    if unmixing_batched == None:
+    	J_t_mix = jac_t_mix(sources)
+    elif sources == None:
+    	J_t_mix = jac_t_mix(unmixing_batched(x))
+    else: raise Exception('Missing input arguments (unimixing_batched/sources)')
     
     return jnp.mean(amari_distance(J_r_unmix, J_t_mix))
 
-def observed_data_likelihood(x, jac_unmixing, base_log_pdf="Uniform"):
+def observed_data_likelihood(x, jac_unmixing=None, jac_mixing=None, base_log_pdf="Uniform"):
     '''
     Computes the log-likelihood of an observation given the unmixing and a base log-pdf
+    or given the mixing and a base log-pdf
     
     Parameters
     ----------
     x : ndarray, shape (n_samples, n_features)
         Input collection of datapoints
-    jac_r_unmix : jacobian function for the reconstructed unmixing (**batched**)
+    jac_unmixing : jacobian function for the true unmixing (**batched**)
+    jac_mixing : jacobian function for the true mixing (**batched**)
     base_log_pdf : default -- Uni
     
     Returns
     -------
     d: 
     '''
-    jac = jac_unmixing(x)
-    log_det_jac = jnp.linalg.slogdet(jac)[1]
+    if jac_mixing == None:
+    	jac = jac_unmixing(x)
+    	log_det_jac = jnp.linalg.slogdet(jac)[1]
+    elif jac_unmixing == None:
+    	jac = jac_mixing(x)
+    	log_det_jac = -jnp.linalg.slogdet(jac)[1]
+    else: raise Exception('Missing input arguments (jac_unmixing/jac_mixing)')
+    	
     if base_log_pdf=="Uniform":
         log_pdf = 0
     else:
