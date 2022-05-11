@@ -1,0 +1,20 @@
+# Config file specifying the setup for Swiss Roll Experiments
+
+training:
+  num_iter: 50000
+  batch_size: 1600
+  lr: 1e-04
+
+  mani_value: 100
+  loglike_value: 0.1
+  cima_value: 1
+
+  loglike_int: 5000
+  cima_int: 25000
+
+  jax_seed: 0
+  np_seed: 0
+
+  log_iter: 1000
+  checkpoint_iter: 5
+  save_root: ./out/swiss_roll/grid_search/100mani/1cima/5000loglikeint/25000cima_int
