@@ -31,6 +31,12 @@ python coordinate_panels.py --elev 22 --azim -62 --roll 0 --depth-scale 2 --blue
 
 ## Geometry and rendering
 
+The panels use `s1, s2` for source coordinates and `x1, x2` (or
+`x1, x2, x3`) for observation coordinates. In the polar example,
+`(s1, s2) = (radius, angle)`, and `polar_map(s)` returns
+`(s1*cos(s2), s1*sin(s2))`. The displayed patch has
+`0.5 <= s1 <= 1.5` and `-0.5 <= s2 <= 0.5`.
+
 `swiss_roll(s)` implements the global map
 `f(s1, s2) = (r*cos(r), s2, r*sin(r))`, where `r = exp(s1)`.
 Its Jacobian Gram matrix is `diag(r**2 * (1 + r**2), 1)`, and its smooth inverse

@@ -39,7 +39,7 @@ STYLE = {
 
 
 def polar_map(s: np.ndarray) -> np.ndarray:
-    """Map (..., 2) radius-angle coordinates to Cartesian coordinates."""
+    """Map (..., 2) sources (s1, s2) = (radius, angle) to (x1, x2)."""
     r, theta = np.moveaxis(np.asarray(s), -1, 0)
     return np.stack((r * np.cos(theta), r * np.sin(theta)), axis=-1)
 
@@ -61,11 +61,11 @@ def polar_panel(ax, *, transformed: bool = False):
         ax.add_collection(LineCollection(segments, colors=color, linewidths=1.5))
         ax.autoscale()
     if transformed:
-        ax.set(xlabel=r"$x$", ylabel=r"$y$")
+        ax.set(xlabel=r"$x_1$", ylabel=r"$x_2$")
         ax.set_aspect("equal", adjustable="box")
         ax.xaxis.set_major_locator(FixedLocator([0.5, 1.0, 1.5]))
     else:
-        ax.set(xlabel=r"$r$", ylabel=r"$\theta$")
+        ax.set(xlabel=r"$s_1$", ylabel=r"$s_2$")
         ax.set_aspect(1.0 / ax.get_data_ratio(), adjustable="box")
         ax.xaxis.set_major_locator(FixedLocator(np.linspace(0.5, 1.5, 5)))
         ax.yaxis.set_major_locator(FixedLocator([-np.pi / 8, 0, np.pi / 8]))
