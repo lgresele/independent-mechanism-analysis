@@ -185,7 +185,7 @@ def make_figures(output: Path, *, elev=22.0, azim=-62.0, roll=0.0,
         polar_panel(axes[1], transformed=True)
         swiss_panel(axes[2], elev=elev, azim=azim, roll=roll,
                     depth_scale=depth_scale, blue_curves=blue_curves)
-        for ax, title in zip(axes, ("Source coordinates", "Polar coordinates", "OCR Swiss-roll")):
+        for ax, title in zip(axes, ("Source coordinates", "Polar coordinates", "Swiss-roll OCT")):
             ax.set_title(title, fontsize=14, pad=16)
         _save(fig, output, "coordinate_panels")
         plt.close(fig)
