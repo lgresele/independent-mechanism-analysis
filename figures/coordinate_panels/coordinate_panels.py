@@ -73,7 +73,8 @@ def polar_panel(ax, *, transformed: bool = False):
     return ax
 
 
-def _visible_segments(points: np.ndarray, view: np.ndarray) -> np.ndarray:
+def _visible_segments(points: np.ndarray, view: np.ndarray,
+                      height_range=RANGE_V) -> np.ndarray:
     """Hide curves behind the opaque roll using orthographic ray intersections.
 
     The surface is an extrusion of an Archimedean spiral. Intersecting a
@@ -98,7 +99,7 @@ def _visible_segments(points: np.ndarray, view: np.ndarray) -> np.ndarray:
         fraction = cross(delta, direction) / denominator
         y = batch[:, None, 1] + distance * view[1]
         hits = ((distance > 0.004) & (fraction >= 0) & (fraction <= 1)
-                & (y >= RANGE_V[0] - 1e-7) & (y <= RANGE_V[1] + 1e-7))
+                & (y >= height_range[0] - 1e-7) & (y <= height_range[1] + 1e-7))
         hidden[i:i + len(batch)] = np.any(hits, axis=1)
     visible = ~hidden
     # Keep adjacent visible samples as short line segments; never join across
@@ -107,13 +108,17 @@ def _visible_segments(points: np.ndarray, view: np.ndarray) -> np.ndarray:
     return pairs[visible[:-1] & visible[1:]]
 
 
-def swiss_panel(ax, *, elev=22.0, azim=-62.0, roll=0.0):
+def swiss_panel(ax, *, elev=22.0, azim=-62.0, roll=0.0,
+                depth_scale=2.0, blue_curves=9):
     """Render the roll with its near end lower-left and far end upper-right."""
+    if depth_scale <= 0 or blue_curves < 2:
+        raise ValueError("Depth must be positive and at least two blue curves are required.")
+    height_range = tuple(v * depth_scale for v in RANGE_V)
     elev_rad, azim_rad = np.deg2rad([elev, azim])
     view = np.array([np.cos(elev_rad) * np.cos(azim_rad),
                      np.cos(elev_rad) * np.sin(azim_rad), np.sin(elev_rad)])
     radius = np.linspace(*RANGE_R, 1000)
-    height = np.linspace(*RANGE_V, 500)
+    height = np.linspace(*height_range, 500)
     # The spiral is much longer than the extrusion is deep. Sample rulings
     # by arc length to keep the visible grid cells reasonably balanced.
     arc_length = (radius * np.sqrt(1 + radius**2) + np.arcsinh(radius)) / 2
@@ -121,15 +126,16 @@ def swiss_panel(ax, *, elev=22.0, azim=-62.0, roll=0.0):
                             arc_length, radius)
     families = [
         (BLUE, [swiss_roll(np.column_stack((np.log(radius), np.full_like(radius, v))))
-                for v in np.linspace(*RANGE_V, 9)]),
+                for v in np.linspace(*height_range, blue_curves)]),
         (MAGENTA, [swiss_roll(np.column_stack((np.full_like(height, np.log(r)), height)))
                    for r in ruling_radii]),
     ]
     for color, curves in families:
-        segments = np.concatenate([_visible_segments(points, view) for points in curves])
+        segments = np.concatenate([_visible_segments(points, view, height_range)
+                                   for points in curves])
         ax.add_collection3d(Line3DCollection(segments, colors=color, linewidths=1.5))
-    ax.set(xlim=(-11.5, 14.5), ylim=RANGE_V, zlim=(-12.5, 15.0))
-    ax.set_box_aspect((26, 10, 27.5), zoom=1.02)
+    ax.set(xlim=(-11.5, 14.5), ylim=height_range, zlim=(-12.5, 15.0))
+    ax.set_box_aspect((26, height_range[1] - height_range[0], 27.5), zoom=1.02)
     ax.view_init(elev=elev, azim=azim, roll=roll)
     ax.set_proj_type("ortho")
     ax.set(xlabel=r"$x_1$", ylabel=r"$x_2$")
@@ -137,7 +143,7 @@ def swiss_panel(ax, *, elev=22.0, azim=-62.0, roll=0.0):
     ax.text2D(1.15, 0.59, r"$x_3$", transform=ax.transAxes, rotation=90,
               fontsize=14, ha="center", va="center")
     ax.set_xticks([-10, 0, 10])
-    ax.set_yticks([-5, 5])
+    ax.set_yticks(height_range)
     ax.set_zticks([-10, 0, 10])
     ax.tick_params(labelsize=13, pad=0)
     for axis in (ax.xaxis, ax.yaxis, ax.zaxis):
@@ -153,7 +159,8 @@ def _save(fig, directory: Path, name: str):
     fig.savefig(directory / f"{name}.png", dpi=200, bbox_inches="tight", pad_inches=0.1)
 
 
-def make_figures(output: Path, *, elev=22.0, azim=-62.0, roll=0.0):
+def make_figures(output: Path, *, elev=22.0, azim=-62.0, roll=0.0,
+                 depth_scale=2.0, blue_curves=9):
     output.mkdir(parents=True, exist_ok=True)
     with plt.rc_context(STYLE):
         for name, transformed in (("source_grid", False), ("observations_grid", True)):
@@ -163,7 +170,8 @@ def make_figures(output: Path, *, elev=22.0, azim=-62.0, roll=0.0):
             plt.close(fig)
         fig = plt.figure(figsize=(4.9, 4.4))
         ax = fig.add_subplot(projection="3d")
-        swiss_panel(ax, elev=elev, azim=azim, roll=roll)
+        swiss_panel(ax, elev=elev, azim=azim, roll=roll,
+                    depth_scale=depth_scale, blue_curves=blue_curves)
         _save(fig, output, "swiss_roll")
         plt.close(fig)
 
@@ -175,8 +183,9 @@ def make_figures(output: Path, *, elev=22.0, azim=-62.0, roll=0.0):
                 fig.add_subplot(grid[0, 2], projection="3d")]
         polar_panel(axes[0])
         polar_panel(axes[1], transformed=True)
-        swiss_panel(axes[2], elev=elev, azim=azim, roll=roll)
-        for ax, title in zip(axes, ("Source coordinates", "Polar OCT", "Swiss-roll OCT")):
+        swiss_panel(axes[2], elev=elev, azim=azim, roll=roll,
+                    depth_scale=depth_scale, blue_curves=blue_curves)
+        for ax, title in zip(axes, ("Source coordinates", "Polar coordinates", "OCR Swiss-roll")):
             ax.set_title(title, fontsize=14, pad=16)
         _save(fig, output, "coordinate_panels")
         plt.close(fig)
@@ -188,8 +197,11 @@ def main():
     parser.add_argument("--elev", type=float, default=22.0)
     parser.add_argument("--azim", type=float, default=-62.0)
     parser.add_argument("--roll", type=float, default=0.0)
+    parser.add_argument("--depth-scale", type=float, default=2.0)
+    parser.add_argument("--blue-curves", type=int, default=9)
     args = parser.parse_args()
-    make_figures(args.output, elev=args.elev, azim=args.azim, roll=args.roll)
+    make_figures(args.output, elev=args.elev, azim=args.azim, roll=args.roll,
+                 depth_scale=args.depth_scale, blue_curves=args.blue_curves)
 
 
 if __name__ == "__main__":

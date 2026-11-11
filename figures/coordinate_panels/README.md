@@ -26,7 +26,7 @@ The default view places the Swiss roll's near end toward the lower left and
 its far end toward the upper right. The camera is adjustable:
 
 ```sh
-python coordinate_panels.py --elev 22 --azim -62 --roll 0 --output output/pdf
+python coordinate_panels.py --elev 22 --azim -62 --roll 0 --depth-scale 2 --blue-curves 9 --output output/pdf
 ```
 
 ## Geometry and rendering
@@ -37,7 +37,9 @@ Its Jacobian Gram matrix is `diag(r**2 * (1 + r**2), 1)`, and its smooth inverse
 on the image is `(log(hypot(x1, x3)), x2)`. It is therefore an OCT; independent
 latent coordinates make it an OCT-IC model.
 
-The picture shows `3*pi/2 <= r <= 9*pi/2` and `-5 <= s2 <= 5`.
+The picture shows `3*pi/2 <= r <= 9*pi/2` and `-10 <= s2 <= 10` at the selected default `--depth-scale 2`.
+`--depth-scale` varies the displayed source interval; it does not change the OCT map.
+`--blue-curves` controls the number of blue curves across that interval.
 This is a separate source domain from the polar example on the left.
 Blue curves vary the first source coordinate; magenta curves vary the second.
 The Swiss-roll grid is sampled more densely along its long spiral than along
